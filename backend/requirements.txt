@@ -15,5 +15,7 @@ apscheduler
 redis
 pydantic
 pydantic-settings
+pydantic[email]
+email-validator
 instagrapi
 requests
