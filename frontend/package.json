@@ -1,0 +1,82 @@
+{
+  "name": "demet",
+  "version": "1.0.0",
+  "description": "Demet — Instagram İçerik Planlama ve Mesaj Yönetim Sistemi",
+  "main": "electron-main.js",
+  "private": true,
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "lint": "eslint",
+    "electron:dev": "npm run build && electron .",
+    "electron:build": "npm run build && electron-builder --win",
+    "postbuild": "echo Build complete"
+  },
+  "dependencies": {
+    "next": "16.1.6",
+    "react": "19.2.3",
+    "react-dom": "19.2.3"
+  },
+  "devDependencies": {
+    "@types/node": "^20",
+    "@types/react": "^19",
+    "@types/react-dom": "^19",
+    "electron": "^35.0.0",
+    "electron-builder": "^26.0.0",
+    "eslint": "^9",
+    "eslint-config-next": "16.1.6",
+    "typescript": "^5"
+  },
+  "build": {
+    "appId": "com.demet.app",
+    "productName": "Demet",
+    "directories": {
+      "output": "dist-electron"
+    },
+    "files": [
+      "electron-main.js",
+      "electron-preload.js",
+      "public/**/*"
+    ],
+    "extraResources": [
+      {
+        "from": "out",
+        "to": "frontend-out",
+        "filter": [
+          "**/*"
+        ]
+      },
+      {
+        "from": "../backend",
+        "to": "backend",
+        "filter": [
+          "**/*.py",
+          "**/*.env",
+          "requirements.txt",
+          "!__pycache__/**",
+          "!*.pyc",
+          "!.venv/**"
+        ]
+      }
+    ],
+    "win": {
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        }
+      ],
+      "icon": "public/favicon.ico"
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "Demet"
+    }
+  }
+}

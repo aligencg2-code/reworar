@@ -1,0 +1,27 @@
+# Dependencies
+.venv/
+node_modules/
+.next/
+out/
+
+# Environment
+.env
+backend/.env
+
+# Data (Railway volume)
+backend/demet.db
+backend/sessions/
+backend/uploads/
+backups/
+logs/
+uploads/
+
+# Debug files
+backend/login_debug.log
+backend/*.log
+
+# OS / IDE
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/

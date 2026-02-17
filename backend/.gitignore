@@ -1,0 +1,52 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+.venv/
+venv/
+
+# Environment
+.env
+
+# Database
+demet.db
+
+# Sessions & uploads (Railway volume)
+sessions/
+uploads/
+
+# Debug & test files
+test_*.py
+debug_*.py
+check_*.py
+add_and_login.py
+analyze_log.py
+audit.py
+fix_*.py
+import_accounts.py
+
+# Debug outputs
+login_debug.log
+*.log
+login_analysis.txt
+api_login_result.txt
+email_check_result.txt
+imap_test_result.txt
+new_accounts_log.txt
+new_accounts_log2.txt
+proxy_test_result.txt
+totp_log.txt
+aol_debug.png
+aol_debug_ff.png
+aol_step1.png
+aol_step2.html
+aol_step2.png
+challenge_noproxy.json
+challenge_response.json
+challenge_response_v2.json
+
+# OS / IDE
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
