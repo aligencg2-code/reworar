@@ -86,7 +86,7 @@ export default function LoginPage() {
                         WebkitTextFillColor: 'transparent',
                         marginBottom: 8,
                     }}>
-                        Demet
+                        Instabot
                     </h1>
                     <p style={{ color: 'var(--text-secondary)', fontSize: '0.85rem' }}>
                         Instagram İçerik Planlama ve Mesaj Yönetimi

@@ -17,7 +17,7 @@ class Settings(BaseSettings):
 
     # --- Uygulama ---
     APP_NAME: str = "Demet"
-    APP_VERSION: str = "1.0.1"
+    APP_VERSION = "1.0.2"
     APP_DEBUG: bool = True
     SECRET_KEY: str = "change-me-in-production-use-openssl-rand-hex-32"
 

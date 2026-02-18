@@ -1,7 +1,7 @@
 {
-  "name": "demet",
-  "version": "1.0.1",
-  "description": "Demet — Instagram İçerik Planlama ve Mesaj Yönetim Sistemi",
+  "name": "instabot",
+  "version": "1.0.2",
+  "description": "Instabot — Instagram İçerik Planlama ve Mesaj Yönetim Sistemi",
   "main": "electron-main.js",
   "private": true,
   "scripts": {
@@ -29,8 +29,8 @@
     "typescript": "^5"
   },
   "build": {
-    "appId": "com.demet.app",
-    "productName": "Demet",
+    "appId": "com.instabot.app",
+    "productName": "Instabot",
     "directories": {
       "output": "dist-electron"
     },
@@ -72,7 +72,7 @@
       "allowToChangeInstallationDirectory": true,
       "createDesktopShortcut": true,
       "createStartMenuShortcut": true,
-      "shortcutName": "Demet"
+      "shortcutName": "Instabot"
     }
   }
 }

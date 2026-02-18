@@ -1,4 +1,4 @@
-// electron-main.js — Demet Masaüstü Uygulaması Ana Process
+// electron-main.js — Instabot Masaüstü Uygulaması Ana Process
 const { app, BrowserWindow, ipcMain, shell, dialog } = require('electron');
 const path = require('path');
 const { spawn, execSync } = require('child_process');
@@ -374,7 +374,7 @@ app.whenReady().then(async () => {
         console.error('[Electron] Başlatma hatası:', err);
         const { dialog } = require('electron');
         dialog.showErrorBox(
-            'Demet — Başlatma Hatası',
+            'Instabot — Başlatma Hatası',
             `Uygulama başlatılamadı.\n\n${err.message}\n\nPython ve gereken paketlerin kurulu olduğundan emin olun.`
         );
         app.quit();
