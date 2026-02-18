@@ -99,3 +99,25 @@ async def create_backup(user: User = Depends(get_current_user)):
     if not path:
         return {"message": "Yedekleme oluşturulamadı", "success": False}
     return {"message": "Yedekleme oluşturuldu", "path": path, "success": True}
+
+
+# ─── Bot Kontrolü ──────────────────────────────────────
+from app.services.autobot_service import autobot_service
+
+
+@router.post("/bot/start")
+async def bot_start(user: User = Depends(get_current_user)):
+    """Otomatik paylaşım botunu başlatır."""
+    return autobot_service.start()
+
+
+@router.post("/bot/stop")
+async def bot_stop(user: User = Depends(get_current_user)):
+    """Otomatik paylaşım botunu durdurur."""
+    return autobot_service.stop()
+
+
+@router.get("/bot/status")
+async def bot_status(user: User = Depends(get_current_user)):
+    """Bot durumunu döner."""
+    return autobot_service.status()

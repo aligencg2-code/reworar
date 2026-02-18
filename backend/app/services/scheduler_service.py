@@ -12,8 +12,9 @@ from app.models.hashtag import HashtagGroup
 from app.utils.logger import logger
 
 # Session dosyaları instagrapi tarafından kaydediliyor
-SESSIONS_DIR = Path(__file__).resolve().parent.parent.parent / "sessions"
-SESSIONS_DIR.mkdir(exist_ok=True)
+from app.config import settings as _app_settings
+SESSIONS_DIR = _app_settings.SESSIONS_DIR
+SESSIONS_DIR.mkdir(parents=True, exist_ok=True)
 
 # Yayınlama işlemleri için thread pool (instagrapi senkron)
 _publish_executor = ThreadPoolExecutor(max_workers=2, thread_name_prefix="publisher")

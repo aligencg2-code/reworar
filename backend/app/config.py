@@ -1,5 +1,6 @@
 # config.py — Merkezi konfigürasyon dosyası
 import os
+import sys
 from pathlib import Path
 from pydantic_settings import BaseSettings
 from dotenv import load_dotenv
@@ -8,23 +9,28 @@ load_dotenv()
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 
-# Railway volume veya local dizin
-DATA_DIR = Path(os.environ.get("DATA_DIR", str(BASE_DIR)))
+# PyInstaller ile paketlenmişse veri dizinini kullanıcı klasörüne yönlendir
+# (C:\Program Files\ yazılamaz, %LOCALAPPDATA%\Instabot kullan)
+if getattr(sys, 'frozen', False):
+    _appdata = os.environ.get("LOCALAPPDATA", os.path.expanduser("~"))
+    DATA_DIR = Path(_appdata) / "Instabot"
+else:
+    DATA_DIR = Path(os.environ.get("DATA_DIR", str(BASE_DIR)))
 
 
 class Settings(BaseSettings):
     """Uygulama ayarları — .env dosyasından okunur."""
 
     # --- Uygulama ---
-    APP_NAME: str = "Demet"
-    APP_VERSION = "1.0.2"
+    APP_NAME: str = "Instabot"
+    APP_VERSION: str = "1.0.3"
     APP_DEBUG: bool = True
     SECRET_KEY: str = "change-me-in-production-use-openssl-rand-hex-32"
 
     # --- Veritabanı ---
     DATABASE_URL: str = os.environ.get(
         "DATABASE_URL",
-        f"sqlite:///{BASE_DIR / 'demet.db'}"
+        f"sqlite:///{DATA_DIR / 'demet.db'}"
     )
 
     # --- Instagram Graph API ---

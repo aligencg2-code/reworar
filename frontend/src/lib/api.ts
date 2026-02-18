@@ -96,6 +96,19 @@ class ApiService {
     return this.request<any>(`/dashboard/activity?limit=${limit}`);
   }
 
+  // Bot
+  async botStart() {
+    return this.request<any>('/dashboard/bot/start', { method: 'POST' });
+  }
+
+  async botStop() {
+    return this.request<any>('/dashboard/bot/stop', { method: 'POST' });
+  }
+
+  async botStatus() {
+    return this.request<any>('/dashboard/bot/status');
+  }
+
   // Accounts
   async getAccounts() {
     return this.request<any[]>('/accounts');

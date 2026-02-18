@@ -486,6 +486,17 @@ a:hover {
   background: rgba(231, 76, 60, 0.25);
 }
 
+.btn-error {
+  background: linear-gradient(135deg, #e74c3c, #c0392b);
+  color: white;
+  box-shadow: 0 4px 12px rgba(231, 76, 60, 0.3);
+}
+
+.btn-error:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 6px 20px rgba(231, 76, 60, 0.4);
+}
+
 .btn-sm {
   padding: 6px 14px;
   font-size: 0.78rem;

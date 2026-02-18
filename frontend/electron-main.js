@@ -4,6 +4,28 @@ const path = require('path');
 const { spawn, execSync } = require('child_process');
 const http = require('http');
 const fs = require('fs');
+
+// ─── Crash Log ──────────────────────────────────────────
+// Sessiz crashleri yakalamak için
+const crashLogPath = path.join(
+    process.env.USERPROFILE || process.env.HOME || 'C:\\',
+    'Desktop',
+    'instabot_crash.log'
+);
+function writeCrashLog(label, err) {
+    try {
+        const msg = `[${new Date().toISOString()}] ${label}: ${err.stack || err.message || err}\n`;
+        fs.appendFileSync(crashLogPath, msg, 'utf-8');
+    } catch { }
+}
+process.on('uncaughtException', (err) => {
+    writeCrashLog('UNCAUGHT_EXCEPTION', err);
+    process.exit(1);
+});
+process.on('unhandledRejection', (err) => {
+    writeCrashLog('UNHANDLED_REJECTION', err);
+});
+
 const { runUpdateCheck, getCurrentVersion } = require('./electron-updater');
 
 // ─── Tek Örnek Kilidi ──────────────────────────────────
@@ -225,41 +247,101 @@ function startBackend() {
             });
         }
 
+        const backendLogs = [];
+
         backendProcess.stdout.on('data', (data) => {
-            console.log(`[Backend] ${data.toString().trim()}`);
+            const line = data.toString().trim();
+            console.log(`[Backend] ${line}`);
+            backendLogs.push(line);
         });
 
         backendProcess.stderr.on('data', (data) => {
-            console.log(`[Backend] ${data.toString().trim()}`);
+            const line = data.toString().trim();
+            console.log(`[Backend] ${line}`);
+            backendLogs.push(`ERR: ${line}`);
         });
 
         backendProcess.on('error', (err) => {
             console.error(`[Backend] Process hatası:`, err);
+            backendLogs.push(`PROCESS ERROR: ${err.message}`);
             reject(err);
         });
 
         backendProcess.on('exit', (code) => {
             console.log(`[Backend] Process sonlandı (code: ${code})`);
+            backendLogs.push(`EXIT CODE: ${code}`);
             backendProcess = null;
         });
 
         // Backend hazır olana kadar bekle
-        waitForBackend(30000).then(() => {
+        waitForBackend(120000).then(() => {
             console.log('[Electron] Backend hazır!');
             resolve();
-        }).catch(reject);
+        }).catch((err) => {
+            // Log dosyasına yaz
+            try {
+                const logPath = path.join(app.getPath('userData'), 'backend_error.log');
+                fs.writeFileSync(logPath, backendLogs.join('\n'), 'utf-8');
+                console.log(`[Electron] Hata logu: ${logPath}`);
+            } catch { }
+            // Son 20 satır logu hataya ekle
+            const lastLogs = backendLogs.slice(-20).join('\n');
+            const detailedError = new Error(
+                `${err.message}\n\n--- Backend Log ---\n${lastLogs || '(log yok - backend hiç çıktı vermedi)'}`
+            );
+            reject(detailedError);
+        });
     });
 }
 
-function waitForBackend(timeout = 30000) {
+function waitForBackend(timeout = 120000) {
     const start = Date.now();
     return new Promise((resolve, reject) => {
+        // Loading penceresi oluştur
+        let loadingWin = null;
+        try {
+            loadingWin = new BrowserWindow({
+                width: 380,
+                height: 200,
+                frame: false,
+                transparent: true,
+                resizable: false,
+                alwaysOnTop: true,
+                skipTaskbar: true,
+                webPreferences: { nodeIntegration: false },
+            });
+            loadingWin.loadURL(`data:text/html;charset=utf-8,
+                <html><body style="margin:0;display:flex;align-items:center;justify-content:center;height:100vh;background:rgba(15,15,35,0.95);border-radius:16px;font-family:system-ui,sans-serif;color:white;">
+                <div style="text-align:center;">
+                    <div style="font-size:24px;font-weight:700;margin-bottom:12px;">Instabot</div>
+                    <div style="font-size:13px;color:#aaa;">Başlatılıyor, lütfen bekleyin...</div>
+                    <div style="margin-top:16px;width:200px;height:4px;background:#333;border-radius:4px;overflow:hidden;">
+                        <div style="width:40%;height:100%;background:linear-gradient(90deg,#6366f1,#8b5cf6);border-radius:4px;animation:loading 1.5s ease infinite;"></div>
+                    </div>
+                </div>
+                <style>@keyframes loading{0%{transform:translateX(-100%)}100%{transform:translateX(350%)}}</style>
+                </body></html>
+            `);
+            loadingWin.center();
+        } catch { /* loading penceresi oluşturulamazsa devam et */ }
+
+        const closeLoading = () => {
+            if (loadingWin && !loadingWin.isDestroyed()) {
+                loadingWin.close();
+                loadingWin = null;
+            }
+        };
+
         const check = () => {
             if (Date.now() - start > timeout) {
+                closeLoading();
                 return reject(new Error('Backend başlatma zaman aşımı'));
             }
             const req = http.get(`${BACKEND_URL}/health`, (res) => {
-                if (res.statusCode === 200) resolve();
+                if (res.statusCode === 200) {
+                    closeLoading();
+                    resolve();
+                }
                 else setTimeout(check, 500);
             });
             req.on('error', () => setTimeout(check, 500));

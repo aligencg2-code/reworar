@@ -15,16 +15,16 @@ _login_executor = ThreadPoolExecutor(max_workers=4, thread_name_prefix="ig-login
 
 # File-based logging (terminal logları scheduler sorguları ile dolup taşıyor)
 import logging as _logging
-_fh = _logging.FileHandler(Path(__file__).resolve().parent.parent.parent / "login_debug.log", encoding="utf-8")
+from app.config import settings as _app_settings
+_app_settings.LOG_DIR.mkdir(parents=True, exist_ok=True)
+_fh = _logging.FileHandler(_app_settings.LOG_DIR / "login_debug.log", encoding="utf-8")
 _fh.setFormatter(_logging.Formatter("%(asctime)s %(message)s"))
 logger.addHandler(_fh)
-
-from app.config import settings as _app_settings
 
 # ─── Sabitler ────────────────────────────────────────────────
 
 SESSIONS_DIR = _app_settings.SESSIONS_DIR
-SESSIONS_DIR.mkdir(exist_ok=True)
+SESSIONS_DIR.mkdir(parents=True, exist_ok=True)
 
 # In-memory challenge context store: {account_id: {client, challenge_context, username, ...}}
 _challenge_store: dict[int, dict] = {}
