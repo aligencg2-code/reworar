@@ -12,10 +12,9 @@ aiofiles
 Pillow
 python-dotenv
 apscheduler
-redis
 pydantic
 pydantic-settings
 pydantic[email]
 email-validator
-instagrapi
 requests
+instagrapi==2.1.2
