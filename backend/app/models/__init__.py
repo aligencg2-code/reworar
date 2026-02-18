@@ -6,3 +6,5 @@ from app.models.message import Message, MessageTemplate, AutoReplyRule
 from app.models.hashtag import HashtagGroup
 from app.models.log import ActivityLog
 from app.models.settings import SystemSettings
+from app.models.caption import Caption
+from app.models.location import Location

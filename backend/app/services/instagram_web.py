@@ -1140,8 +1140,35 @@ class InstagramWebClient:
         except Exception as e:
             raise InstagramWebError(f"Profil bilgisi alınamadı: {e}")
 
+    async def load_session_from_file(self, username: str) -> bool:
+        """Kaydedilmiş session dosyasından instagrapi client'ı yükler.
+        Bu metot profil güncelleme gibi işlemler için gereklidir.
+        """
+        session_file = self._session_path(username)
+        if not session_file.exists():
+            raise InstagramWebError(f"@{username} session dosyası bulunamadı")
+
+        loop = asyncio.get_event_loop()
+
+        def _load():
+            cl = self._get_instagrapi_client()
+            try:
+                cl.load_settings(session_file)
+                # Session geçerli mi test et
+                cl.account_info()
+                self._cl = cl
+                self.username = username
+                self.user_id = str(cl.user_id or "")
+                logger.info(f"  ✅ @{username} session dosyasından yüklendi")
+                return True
+            except Exception as e:
+                logger.error(f"  ❌ @{username} session yüklenemedi: {e}")
+                raise InstagramWebError(f"Session geçersiz, yeniden giriş gerekli: {e}")
+
+        return await loop.run_in_executor(None, _load)
+
     async def update_profile(self, **kwargs) -> dict:
-        """Profil bilgilerini günceller."""
+        """Profil bilgilerini günceller (bio, full_name, external_url, phone_number)."""
         if not self._cl:
             raise InstagramWebError("Giriş yapılmamış")
         loop = asyncio.get_event_loop()
@@ -1150,6 +1177,19 @@ class InstagramWebClient:
             return {"success": True, "user": str(result)}
         except Exception as e:
             raise InstagramWebError(f"Profil güncellenemedi: {e}")
+
+    async def update_profile_picture(self, photo_path: str) -> dict:
+        """Profil fotoğrafını değiştirir."""
+        if not self._cl:
+            raise InstagramWebError("Giriş yapılmamış")
+        loop = asyncio.get_event_loop()
+        try:
+            result = await loop.run_in_executor(
+                None, lambda: self._cl.account_change_picture(photo_path)
+            )
+            return {"success": True, "user": str(result)}
+        except Exception as e:
+            raise InstagramWebError(f"Profil fotoğrafı değiştirilemedi: {e}")
 
     # ──────────────────────────── MEDYA İŞLEMLERİ ────────────────────────────
 

@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, useRef } from 'react';
 import { api } from '@/lib/api';
 
 interface ProfileInfo {
@@ -28,7 +28,13 @@ export default function ProfilesPage() {
     const [refreshing, setRefreshing] = useState(false);
     const [editId, setEditId] = useState<number | null>(null);
     const [editData, setEditData] = useState<any>({});
+    const [igEditId, setIgEditId] = useState<number | null>(null);
+    const [igEditData, setIgEditData] = useState<any>({});
+    const [igSaving, setIgSaving] = useState(false);
+    const [photoUploading, setPhotoUploading] = useState(false);
     const [toast, setToast] = useState<{ type: string; message: string } | null>(null);
+    const photoInputRef = useRef<HTMLInputElement>(null);
+    const [photoTargetId, setPhotoTargetId] = useState<number | null>(null);
 
     const showToast = (type: string, message: string) => {
         setToast({ type, message });
@@ -70,11 +76,10 @@ export default function ProfilesPage() {
         }
     };
 
+    // ─── Yerel ayarlar düzenleme ─────────────────────────────
     const startEdit = (profile: ProfileInfo) => {
         setEditId(profile.id);
         setEditData({
-            full_name: profile.full_name || '',
-            biography: profile.biography || '',
             daily_post_limit: profile.daily_post_limit,
             auto_publish: profile.auto_publish,
             photo_percentage: profile.photo_percentage,
@@ -91,11 +96,91 @@ export default function ProfilesPage() {
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(editData),
             });
-            showToast('success', '✅ Profil güncellendi');
+            showToast('success', '✅ Ayarlar kaydedildi');
             setEditId(null);
             loadProfiles();
         } catch (err: any) {
             showToast('error', err.message);
+        }
+    };
+
+    // ─── Instagram profil düzenleme ──────────────────────────
+    const startIgEdit = (profile: ProfileInfo) => {
+        setIgEditId(profile.id);
+        setIgEditData({
+            full_name: profile.full_name || '',
+            biography: profile.biography || '',
+            external_url: '',
+            username: profile.username || '',
+        });
+    };
+
+    const handleIgSave = async (id: number) => {
+        setIgSaving(true);
+        try {
+            // Sadece değişen alanları gönder
+            const payload: any = {};
+            const profile = profiles.find(p => p.id === id);
+            if (igEditData.full_name !== (profile?.full_name || ''))
+                payload.full_name = igEditData.full_name;
+            if (igEditData.biography !== (profile?.biography || ''))
+                payload.biography = igEditData.biography;
+            if (igEditData.external_url)
+                payload.external_url = igEditData.external_url;
+            if (igEditData.username !== (profile?.username || ''))
+                payload.username = igEditData.username;
+
+            if (Object.keys(payload).length === 0) {
+                showToast('error', 'Değişiklik yapılmadı');
+                setIgSaving(false);
+                return;
+            }
+
+            await api.request(`/profiles/${id}/update-instagram`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload),
+            });
+            showToast('success', '✅ Instagram profili güncellendi!');
+            setIgEditId(null);
+            loadProfiles();
+        } catch (err: any) {
+            showToast('error', err.message || 'Instagram güncelleme başarısız');
+        } finally {
+            setIgSaving(false);
+        }
+    };
+
+    // ─── Profil fotoğrafı değiştirme ─────────────────────────
+    const handlePhotoChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0];
+        if (!file || !photoTargetId) return;
+
+        setPhotoUploading(true);
+        try {
+            const formData = new FormData();
+            formData.append('photo', file);
+
+            const token = localStorage.getItem('access_token');
+            const response = await fetch(`/api/profiles/${photoTargetId}/update-photo`, {
+                method: 'POST',
+                headers: token ? { Authorization: `Bearer ${token}` } : {},
+                body: formData,
+            });
+
+            if (!response.ok) {
+                const err = await response.json();
+                throw new Error(err.detail || 'Fotoğraf yüklenemedi');
+            }
+
+            showToast('success', '✅ Profil fotoğrafı güncellendi!');
+            loadProfiles();
+        } catch (err: any) {
+            showToast('error', err.message || 'Fotoğraf güncelleme başarısız');
+        } finally {
+            setPhotoUploading(false);
+            setPhotoTargetId(null);
+            if (photoInputRef.current) photoInputRef.current.value = '';
         }
     };
 
@@ -119,23 +204,24 @@ export default function ProfilesPage() {
             )}
             <style>{`@keyframes slideIn { from { opacity: 0; transform: translateX(30px); } to { opacity: 1; transform: translateX(0); } }`}</style>
 
+            {/* Hidden file input */}
+            <input
+                type="file"
+                ref={photoInputRef}
+                accept="image/*"
+                style={{ display: 'none' }}
+                onChange={handlePhotoChange}
+            />
+
             {/* Header */}
             <div className="page-header">
                 <div>
                     <h2 className="page-header__title">Profil Yönetimi</h2>
-                    <p className="page-header__subtitle">Hesap bilgilerini düzenleyin ve yönetin</p>
+                    <p className="page-header__subtitle">Instagram hesap bilgilerini düzenleyin — bio, isim, link, fotoğraf</p>
                 </div>
                 <button className="btn btn-secondary" onClick={handleRefreshAll} disabled={refreshing}>
                     {refreshing ? '⏳ Yenileniyor...' : '🔄 Tüm Profilleri Yenile'}
                 </button>
-            </div>
-
-            {/* Bilgi */}
-            <div className="info-box blue" style={{ marginBottom: 20 }}>
-                ℹ️ <b>Not:</b> Instagram Graph API üzerinden profil fotoğrafı, bio ve isim
-                değiştirme <b>desteklenmiyor</b>. Bu sayfada hesap ayarlarını (günlük limit,
-                medya yüzdeleri, proxy, otomatik yayın) düzenleyebilirsiniz.
-                Profil bilgileri Instagram'dan otomatik çekilir.
             </div>
 
             {/* Profil Listesi */}
@@ -149,23 +235,45 @@ export default function ProfilesPage() {
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
                     {profiles.map(profile => {
                         const isEditing = editId === profile.id;
+                        const isIgEditing = igEditId === profile.id;
 
                         return (
                             <div key={profile.id} className="card" style={{ padding: '20px' }}>
                                 {/* Profil Header */}
-                                <div style={{ display: 'flex', alignItems: 'center', gap: 16, marginBottom: isEditing ? 20 : 0 }}>
-                                    {/* Avatar */}
-                                    <div style={{
-                                        width: 64, height: 64, borderRadius: '50%',
-                                        background: 'var(--gradient-primary)', display: 'flex',
-                                        alignItems: 'center', justifyContent: 'center',
-                                        fontSize: '1.4rem', fontWeight: 700, color: '#fff', overflow: 'hidden',
-                                        flexShrink: 0,
-                                    }}>
-                                        {profile.profile_picture_url ? (
+                                <div style={{ display: 'flex', alignItems: 'center', gap: 16, marginBottom: (isEditing || isIgEditing) ? 20 : 0 }}>
+                                    {/* Avatar — tıklanabilir (fotoğraf değiştirir) */}
+                                    <div
+                                        style={{
+                                            width: 64, height: 64, borderRadius: '50%',
+                                            background: 'var(--gradient-primary)', display: 'flex',
+                                            alignItems: 'center', justifyContent: 'center',
+                                            fontSize: '1.4rem', fontWeight: 700, color: '#fff', overflow: 'hidden',
+                                            flexShrink: 0, cursor: 'pointer', position: 'relative',
+                                            border: '2px solid transparent',
+                                            transition: 'border-color 0.2s',
+                                        }}
+                                        title="Profil fotoğrafını değiştir"
+                                        onMouseEnter={e => (e.currentTarget.style.borderColor = 'var(--color-primary)')}
+                                        onMouseLeave={e => (e.currentTarget.style.borderColor = 'transparent')}
+                                        onClick={() => {
+                                            setPhotoTargetId(profile.id);
+                                            photoInputRef.current?.click();
+                                        }}
+                                    >
+                                        {photoUploading && photoTargetId === profile.id ? (
+                                            <div className="spinner" style={{ width: 24, height: 24 }} />
+                                        ) : profile.profile_picture_url ? (
                                             <img src={profile.profile_picture_url} alt={profile.username}
                                                 style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
                                         ) : profile.username?.[0]?.toUpperCase()}
+                                        {/* Camera overlay */}
+                                        <div style={{
+                                            position: 'absolute', bottom: 0, right: 0,
+                                            width: 22, height: 22, borderRadius: '50%',
+                                            background: 'var(--color-primary)', display: 'flex',
+                                            alignItems: 'center', justifyContent: 'center',
+                                            fontSize: '0.7rem', border: '2px solid var(--bg-card)',
+                                        }}>📷</div>
                                     </div>
 
                                     {/* Bilgiler */}
@@ -197,37 +305,92 @@ export default function ProfilesPage() {
                                     </div>
 
                                     {/* İşlemler */}
-                                    <div style={{ display: 'flex', gap: 8 }}>
+                                    <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
                                         <button className="btn btn-sm btn-secondary" onClick={() => handleRefreshSingle(profile.id)}>
                                             🔄
                                         </button>
+                                        {/* Instagram Profil Düzenle */}
+                                        {isIgEditing ? (
+                                            <>
+                                                <button className="btn btn-sm btn-primary" onClick={() => handleIgSave(profile.id)} disabled={igSaving}>
+                                                    {igSaving ? '⏳' : '💾'} Instagram Kaydet
+                                                </button>
+                                                <button className="btn btn-sm btn-secondary" onClick={() => setIgEditId(null)}>İptal</button>
+                                            </>
+                                        ) : (
+                                            <button className="btn btn-sm btn-primary" onClick={() => startIgEdit(profile)}
+                                                style={{ background: 'linear-gradient(135deg, #E1306C, #C13584, #833AB4)', border: 'none' }}>
+                                                ✏️ Profil Düzenle
+                                            </button>
+                                        )}
+                                        {/* Yerel Ayarlar */}
                                         {isEditing ? (
                                             <>
-                                                <button className="btn btn-sm btn-primary" onClick={() => handleSave(profile.id)}>💾 Kaydet</button>
+                                                <button className="btn btn-sm btn-secondary" onClick={() => handleSave(profile.id)}>💾 Ayarları Kaydet</button>
                                                 <button className="btn btn-sm btn-secondary" onClick={() => setEditId(null)}>İptal</button>
                                             </>
                                         ) : (
-                                            <button className="btn btn-sm btn-primary" onClick={() => startEdit(profile)}>✏️ Düzenle</button>
+                                            <button className="btn btn-sm btn-secondary" onClick={() => startEdit(profile)}>⚙️ Ayarlar</button>
                                         )}
                                     </div>
                                 </div>
 
-                                {/* Düzenleme Formu */}
-                                {isEditing && (
+                                {/* Instagram Profil Düzenleme Formu */}
+                                {isIgEditing && (
                                     <div style={{
-                                        borderTop: '1px solid rgba(255,255,255,0.06)', paddingTop: 16,
+                                        borderTop: '1px solid rgba(255,255,255,0.06)', paddingTop: 16, marginTop: 12,
                                     }}>
-                                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 12 }}>
+                                        <div style={{
+                                            display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12,
+                                            fontSize: '0.8rem', color: 'var(--text-secondary)',
+                                        }}>
+                                            <span style={{ fontSize: '1.1rem' }}>📸</span>
+                                            <b>Instagram Profil Düzenleme</b> — Bu değişiklikler Instagram&apos;a yansır
+                                        </div>
+                                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))', gap: 12 }}>
+                                            <div className="form-group">
+                                                <label className="form-label">Kullanıcı Adı</label>
+                                                <input className="form-input" value={igEditData.username}
+                                                    placeholder="kullanici_adi"
+                                                    onChange={e => setIgEditData({ ...igEditData, username: e.target.value })} />
+                                            </div>
                                             <div className="form-group">
                                                 <label className="form-label">Tam İsim</label>
-                                                <input className="form-input" value={editData.full_name}
-                                                    onChange={e => setEditData({ ...editData, full_name: e.target.value })} />
+                                                <input className="form-input" value={igEditData.full_name}
+                                                    placeholder="İsim Soyisim"
+                                                    onChange={e => setIgEditData({ ...igEditData, full_name: e.target.value })} />
                                             </div>
-                                            <div className="form-group">
+                                            <div className="form-group" style={{ gridColumn: 'span 2' }}>
                                                 <label className="form-label">Biyografi</label>
-                                                <input className="form-input" value={editData.biography}
-                                                    onChange={e => setEditData({ ...editData, biography: e.target.value })} />
+                                                <textarea className="form-input" value={igEditData.biography}
+                                                    placeholder="Profil açıklamanız..."
+                                                    rows={3}
+                                                    style={{ resize: 'vertical', minHeight: 60 }}
+                                                    onChange={e => setIgEditData({ ...igEditData, biography: e.target.value })} />
                                             </div>
+                                            <div className="form-group" style={{ gridColumn: 'span 2' }}>
+                                                <label className="form-label">Web Sitesi / Link</label>
+                                                <input className="form-input" value={igEditData.external_url}
+                                                    placeholder="https://siteniz.com"
+                                                    onChange={e => setIgEditData({ ...igEditData, external_url: e.target.value })} />
+                                            </div>
+                                        </div>
+                                    </div>
+                                )}
+
+                                {/* Yerel Ayarlar Düzenleme Formu */}
+                                {isEditing && (
+                                    <div style={{
+                                        borderTop: '1px solid rgba(255,255,255,0.06)', paddingTop: 16, marginTop: 12,
+                                    }}>
+                                        <div style={{
+                                            display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12,
+                                            fontSize: '0.8rem', color: 'var(--text-secondary)',
+                                        }}>
+                                            <span style={{ fontSize: '1.1rem' }}>⚙️</span>
+                                            <b>Uygulama Ayarları</b> — Bu ayarlar sadece Demet uygulamasında geçerlidir
+                                        </div>
+                                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 12 }}>
                                             <div className="form-group">
                                                 <label className="form-label">Proxy URL</label>
                                                 <input className="form-input" placeholder="socks5://user:pass@ip:port"

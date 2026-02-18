@@ -1,6 +1,6 @@
 {
   "name": "demet",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "Demet — Instagram İçerik Planlama ve Mesaj Yönetim Sistemi",
   "main": "electron-main.js",
   "private": true,
@@ -37,6 +37,7 @@
     "files": [
       "electron-main.js",
       "electron-preload.js",
+      "electron-updater.js",
       "public/**/*"
     ],
     "extraResources": [
@@ -48,15 +49,10 @@
         ]
       },
       {
-        "from": "../backend",
+        "from": "../backend/dist/Demet",
         "to": "backend",
         "filter": [
-          "**/*.py",
-          "**/*.env",
-          "requirements.txt",
-          "!__pycache__/**",
-          "!*.pyc",
-          "!.venv/**"
+          "**/*"
         ]
       }
     ],

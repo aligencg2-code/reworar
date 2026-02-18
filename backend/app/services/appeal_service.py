@@ -210,21 +210,39 @@ class AppealService:
             "checkpoint": 0,
             "unknown": 0,
             "never_checked": 0,
+            "session_invalid": 0,
             "accounts": [],
         }
 
         for acc in accounts:
-            status = acc.account_status or AccountStatus.UNKNOWN.value
-            if status == AccountStatus.ACTIVE.value:
+            # Gerçek durumu belirle — sadece account_status'e değil,
+            # is_active ve session_valid'e de bak
+            raw_status = acc.account_status or AccountStatus.UNKNOWN.value
+
+            # is_active=False ise hesap pasif/devre dışı
+            if not acc.is_active:
+                effective_status = AccountStatus.DISABLED.value
+            # Session geçersizse
+            elif hasattr(acc, 'session_valid') and acc.session_valid is False:
+                effective_status = "session_invalid"
+            # Hiç kontrol edilmemişse UNKNOWN
+            elif not acc.last_checked_at and raw_status == AccountStatus.UNKNOWN.value:
+                effective_status = AccountStatus.UNKNOWN.value
+            else:
+                effective_status = raw_status
+
+            if effective_status == AccountStatus.ACTIVE.value:
                 summary["active"] += 1
-            elif status == AccountStatus.RESTRICTED.value:
+            elif effective_status == AccountStatus.RESTRICTED.value:
                 summary["restricted"] += 1
-            elif status == AccountStatus.ACTION_BLOCKED.value:
+            elif effective_status == AccountStatus.ACTION_BLOCKED.value:
                 summary["action_blocked"] += 1
-            elif status == AccountStatus.DISABLED.value:
+            elif effective_status == AccountStatus.DISABLED.value:
                 summary["disabled"] += 1
-            elif status == AccountStatus.CHECKPOINT.value:
+            elif effective_status == AccountStatus.CHECKPOINT.value:
                 summary["checkpoint"] += 1
+            elif effective_status == "session_invalid":
+                summary["session_invalid"] += 1
             else:
                 summary["unknown"] += 1
 
@@ -237,15 +255,17 @@ class AppealService:
                 "full_name": acc.full_name,
                 "profile_picture_url": acc.profile_picture_url,
                 "followers_count": acc.followers_count,
-                "account_status": status,
+                "account_status": effective_status,
                 "appeal_status": acc.appeal_status or AppealStatus.NONE.value,
                 "status_message": acc.status_message,
                 "last_checked_at": acc.last_checked_at.isoformat() if acc.last_checked_at else None,
                 "last_appeal_at": acc.last_appeal_at.isoformat() if acc.last_appeal_at else None,
                 "is_active": acc.is_active,
+                "session_valid": getattr(acc, 'session_valid', None),
             })
 
         return summary
+
 
 
 appeal_service = AppealService()

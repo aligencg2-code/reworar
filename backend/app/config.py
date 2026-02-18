@@ -17,8 +17,8 @@ class Settings(BaseSettings):
 
     # --- Uygulama ---
     APP_NAME: str = "Demet"
-    APP_VERSION: str = "1.0.0"
-    DEBUG: bool = os.environ.get("DEBUG", "True").lower() == "true"
+    APP_VERSION: str = "1.0.1"
+    APP_DEBUG: bool = True
     SECRET_KEY: str = "change-me-in-production-use-openssl-rand-hex-32"
 
     # --- Veritabanı ---
@@ -76,6 +76,7 @@ class Settings(BaseSettings):
     class Config:
         env_file = ".env"
         env_file_encoding = "utf-8"
+        extra = "ignore"
 
 
 settings = Settings()

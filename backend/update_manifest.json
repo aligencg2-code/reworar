@@ -1,0 +1,9 @@
+{
+    "latest_version": "1.0.1",
+    "min_version": "1.0.0",
+    "changelog": "İlk uzaktan güncelleme - stabilite iyileştirmeleri",
+    "download_url": "/api/update/download",
+    "file_size": 540800,
+    "release_date": "2026-02-18",
+    "force_update": false
+}

@@ -1,5 +1,7 @@
 // API service — Backend ile iletişim katmanı
-const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://127.0.0.1:8000/api';
+// Electron modda frontend server /api/* isteklerini backend'e proxy'ler
+// Bu yüzden hem web hem desktop modda '/api' relative path çalışır
+const API_BASE = process.env.NEXT_PUBLIC_API_URL || '/api';
 
 class ApiService {
   private token: string | null = null;
@@ -284,6 +286,86 @@ class ApiService {
 
   async createBackup() {
     return this.request<any>('/dashboard/backups/create', { method: 'POST' });
+  }
+
+  // Captions
+  async getCaptions() {
+    return this.request<any>('/captions');
+  }
+
+  async createCaption(data: any) {
+    return this.request<any>('/captions', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  }
+
+  async bulkImportCaptions(text: string) {
+    return this.request<any>('/captions/bulk-import', {
+      method: 'POST',
+      body: JSON.stringify({ captions_text: text }),
+    });
+  }
+
+  async updateCaption(id: number, data: any) {
+    return this.request<any>(`/captions/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    });
+  }
+
+  async deleteCaption(id: number) {
+    return this.request<any>(`/captions/${id}`, { method: 'DELETE' });
+  }
+
+  async deleteAllCaptions() {
+    return this.request<any>('/captions', { method: 'DELETE' });
+  }
+
+  // Locations
+  async getLocations(city?: string) {
+    const params = city ? `?city=${encodeURIComponent(city)}` : '';
+    return this.request<any>(`/locations${params}`);
+  }
+
+  async createLocation(data: any) {
+    return this.request<any>('/locations', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  }
+
+  async bulkImportLocations(text: string) {
+    return this.request<any>('/locations/bulk-import', {
+      method: 'POST',
+      body: JSON.stringify({ locations_text: text }),
+    });
+  }
+
+  async updateLocation(id: number, data: any) {
+    return this.request<any>(`/locations/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    });
+  }
+
+  async deleteLocation(id: number) {
+    return this.request<any>(`/locations/${id}`, { method: 'DELETE' });
+  }
+
+  // Logs
+  async getLogs(params?: { account_id?: number; category?: string; level?: string; limit?: number }) {
+    const queryParts: string[] = [];
+    if (params?.account_id) queryParts.push(`account_id=${params.account_id}`);
+    if (params?.category) queryParts.push(`category=${params.category}`);
+    if (params?.level) queryParts.push(`level=${params.level}`);
+    if (params?.limit) queryParts.push(`limit=${params.limit}`);
+    const query = queryParts.length ? `?${queryParts.join('&')}` : '';
+    return this.request<any>(`/logs${query}`);
+  }
+
+  async clearLogs() {
+    return this.request<any>('/logs', { method: 'DELETE' });
   }
 }
 

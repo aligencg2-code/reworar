@@ -26,6 +26,7 @@ interface Summary {
     checkpoint: number;
     unknown: number;
     never_checked: number;
+    session_invalid: number;
     accounts: AccountHealth[];
 }
 
@@ -43,6 +44,7 @@ const STATUS_CONFIG: Record<string, { label: string; color: string; icon: string
     action_blocked: { label: 'Engellendi', color: '#e74c3c', icon: '🚫', badgeClass: 'badge-error' },
     disabled: { label: 'Devre Dışı', color: '#95a5a6', icon: '💀', badgeClass: 'badge-error' },
     checkpoint: { label: 'Doğrulama Gerekli', color: '#f39c12', icon: '🔒', badgeClass: 'badge-warning' },
+    session_invalid: { label: 'Oturum Geçersiz', color: '#8e44ad', icon: '🔑', badgeClass: 'badge-error' },
     unknown: { label: 'Bilinmiyor', color: '#7f8c8d', icon: '❓', badgeClass: 'badge-warning' },
 };
 
@@ -156,7 +158,7 @@ export default function AppealsPage() {
         return a.account_status === filter;
     }) || [];
 
-    const problematicCount = summary ? summary.restricted + summary.action_blocked + summary.disabled + summary.checkpoint : 0;
+    const problematicCount = summary ? summary.restricted + summary.action_blocked + summary.disabled + summary.checkpoint + (summary.session_invalid || 0) : 0;
 
     return (
         <div>
@@ -223,6 +225,7 @@ export default function AppealsPage() {
                         { key: 'restricted', label: 'Kısıtlı', value: summary.restricted, icon: '⚠️', color: '#e67e22' },
                         { key: 'action_blocked', label: 'Engelli', value: summary.action_blocked, icon: '🚫', color: '#e74c3c' },
                         { key: 'disabled', label: 'Devre Dışı', value: summary.disabled, icon: '💀', color: '#95a5a6' },
+                        { key: 'session_invalid', label: 'Oturum Geçersiz', value: summary.session_invalid || 0, icon: '🔑', color: '#8e44ad' },
                         { key: 'checkpoint', label: 'Doğrulama', value: summary.checkpoint, icon: '🔒', color: '#f39c12' },
                     ].map(s => (
                         <div

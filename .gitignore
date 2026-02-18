@@ -25,3 +25,15 @@ backend/*.log
 Thumbs.db
 .idea/
 .vscode/
+
+# Build outputs
+backend/dist/
+backend/build/
+frontend/dist-electron/
+__pycache__/
+*.py[cod]
+
+# Generated
+backend/generated_key.txt
+update-server/updates/*.zip
+license.key
