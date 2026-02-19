@@ -1,9 +1,9 @@
 {
     "latest_version": "1.2.5",
     "min_version": "1.0.0",
-    "changelog": "Playwright tarayici destegi, otomatik Chromium indirme",
+    "changelog": "Playwright tarayici destegi, Chromium otomatik indirme",
     "download_url": "/api/update/download",
-    "file_size": 74888428,
-    "release_date": "2026-02-19",
+    "file_size": 37035312,
+    "release_date": "2026-02-20",
     "force_update": false
 }

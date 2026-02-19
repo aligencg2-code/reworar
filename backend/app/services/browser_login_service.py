@@ -32,49 +32,54 @@ async def browser_login(account_id: int, username: str, proxy_url: str | None = 
 
 def _ensure_chromium():
     """Playwright Chromium yoksa otomatik indirir."""
-    import subprocess, sys, os
+    import subprocess, sys
     try:
         from playwright.sync_api import sync_playwright
-        # Chromium'un yüklü olup olmadığını kontrol et
-        try:
-            with sync_playwright() as p:
-                browser = p.chromium.launch(headless=True)
-                browser.close()
-            return True, None
-        except Exception as e:
-            err = str(e)
-            if "Executable doesn't exist" in err or "browserType.launch" in err:
-                logger.info("🔄 Chromium indiriliyor (ilk kullanım)...")
-                # Playwright CLI ile chromium indir
-                try:
-                    if getattr(sys, 'frozen', False):
-                        # PyInstaller ortamında playwright CLI
-                        playwright_module = Path(sys._MEIPASS) / "playwright"
-                        driver_cli = playwright_module / "driver" / "package" / "cli.js"
-                        node_exe = playwright_module / "driver" / "node.exe"
-                        if driver_cli.exists() and node_exe.exists():
-                            subprocess.run(
-                                [str(node_exe), str(driver_cli), "install", "chromium"],
-                                check=True, timeout=300
-                            )
-                        else:
-                            # Fallback: subprocess ile playwright install
-                            subprocess.run(
-                                [sys.executable, "-m", "playwright", "install", "chromium"],
-                                check=True, timeout=300
-                            )
-                    else:
-                        subprocess.run(
-                            [sys.executable, "-m", "playwright", "install", "chromium"],
-                            check=True, timeout=300
-                        )
-                    logger.info("✅ Chromium başarıyla indirildi!")
-                    return True, None
-                except Exception as install_err:
-                    return False, f"Chromium indirilemedi: {install_err}"
-            return False, f"Tarayıcı hatası: {err[:200]}"
     except ImportError:
         return False, "Playwright yüklü değil."
+
+    # Chromium'un yüklü olup olmadığını kontrol et
+    try:
+        with sync_playwright() as p:
+            browser = p.chromium.launch(headless=True)
+            browser.close()
+        return True, None
+    except Exception as e:
+        err = str(e)
+        if "Executable doesn't exist" not in err and "browserType.launch" not in err:
+            return False, f"Tarayıcı hatası: {err[:200]}"
+
+    # Chromium yüklü değil — otomatik indir
+    logger.info("🔄 Chromium indiriliyor (ilk kullanım — bu birkaç dakika sürebilir)...")
+    try:
+        # playwright'in kendi install komutunu kullan
+        from playwright._impl._driver import compute_driver_executable
+        driver_exec = compute_driver_executable()
+        if isinstance(driver_exec, tuple):
+            # Bazı versiyonlarda (node_exe, cli_js) tuple döner
+            node_exe, cli_js = driver_exec
+            subprocess.run(
+                [str(node_exe), str(cli_js), "install", "chromium"],
+                check=True, timeout=300
+            )
+        else:
+            subprocess.run(
+                [str(driver_exec), "install", "chromium"],
+                check=True, timeout=300
+            )
+        logger.info("✅ Chromium başarıyla indirildi!")
+        return True, None
+    except Exception:
+        # Fallback — doğrudan subprocess ile çalıştır
+        try:
+            subprocess.run(
+                [sys.executable, "-m", "playwright", "install", "chromium"],
+                check=True, timeout=300
+            )
+            logger.info("✅ Chromium başarıyla indirildi! (fallback)")
+            return True, None
+        except Exception as e2:
+            return False, f"Chromium indirilemedi: {e2}"
 
 
 def _browser_login_sync(account_id: int, username: str, proxy_url: str | None = None) -> dict:
