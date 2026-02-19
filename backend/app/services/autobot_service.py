@@ -323,29 +323,62 @@ class AutoBotService:
     def _build_caption(self, db: Session, account: Account) -> str:
         """Caption + hashtag oluşturur."""
         from app.models.caption import Caption
+        from app.models.settings import SystemSettings
 
         parts = []
 
-        # 1) Kayıtlı caption'lardan rastgele seç
+        # Sistem ayarlarını oku
+        caption_mode = "random"
+        selected_hash_id = None
+        try:
+            mode_setting = db.query(SystemSettings).filter(SystemSettings.key == "caption_mode").first()
+            if mode_setting:
+                caption_mode = mode_setting.value
+            hash_setting = db.query(SystemSettings).filter(SystemSettings.key == "selected_hashtag_group_id").first()
+            if hash_setting and hash_setting.value:
+                selected_hash_id = int(hash_setting.value)
+        except Exception:
+            pass
+
+        # 1) Caption seçimi
         captions = db.query(Caption).filter(Caption.is_active == True).all()
         if captions:
-            caption = random.choice(captions)
+            if caption_mode == "sequential":
+                captions.sort(key=lambda c: c.use_count)
+                caption = captions[0]
+            else:
+                caption = random.choice(captions)
             parts.append(caption.text)
             caption.use_count += 1
 
-        # 2) Hashtag gruplarından rastgele seç ve ekle
-        groups = db.query(HashtagGroup).all()
-        if groups:
-            group = random.choice(groups)
-            parts.append(group.get_hashtag_string())
+        # 2) Hashtag grubu seçimi
+        if selected_hash_id:
+            group = db.query(HashtagGroup).filter(HashtagGroup.id == selected_hash_id).first()
+            if group:
+                parts.append(group.get_hashtag_string())
+        else:
+            groups = db.query(HashtagGroup).all()
+            if groups:
+                group = random.choice(groups)
+                parts.append(group.get_hashtag_string())
 
         return "\n\n".join(parts)
 
     def _get_location(self, db: Session, account: Account) -> str | None:
         """Hesap veya genel konum bilgisini döner."""
         from app.models.location import Location
+        from app.models.settings import SystemSettings
         try:
-            locations = db.query(Location).filter(Location.is_active == True).all()
+            # Seçili şehir filtresi
+            selected_city = None
+            city_setting = db.query(SystemSettings).filter(SystemSettings.key == "selected_location_city").first()
+            if city_setting and city_setting.value:
+                selected_city = city_setting.value
+
+            query = db.query(Location).filter(Location.is_active == True)
+            if selected_city:
+                query = query.filter(Location.city == selected_city)
+            locations = query.all()
             if locations:
                 loc = random.choice(locations)
                 return loc.name

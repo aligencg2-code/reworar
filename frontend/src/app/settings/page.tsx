@@ -48,7 +48,6 @@ export default function SettingsPage() {
     // ─── Genel Ayar Alanları ──────────────────
     const postingSettings = [
         { key: 'posts_per_account', label: 'Hesap Başı Paylaşım Sayısı', type: 'number', placeholder: '2', desc: 'Her hesap için bir turda kaç paylaşım yapılacak' },
-        { key: 'caption_mode', label: 'Caption Seçim Modu', type: 'select', options: ['random', 'sequential'], desc: 'Paylaşım yazısı sıralı mı rastgele mi seçilsin' },
         { key: 'default_posting_mode', label: 'Medya Seçim Modu', type: 'select', options: ['sequential', 'random'], desc: 'Medya dosyaları sıralı mı rastgele mi seçilsin' },
     ];
     const timingSettings = [
@@ -77,13 +76,19 @@ export default function SettingsPage() {
 
     const loadAllData = async () => {
         try {
-            const [settingsData, backupsData] = await Promise.all([
+            const [settingsData, backupsData, locData, hashData, captData] = await Promise.all([
                 api.getSettings(),
                 api.getBackups(),
+                api.getLocations(),
+                api.getHashtagGroups(),
+                api.getCaptions(),
             ]);
             setSettings(settingsData.settings || {});
             setBackups(backupsData.backups || []);
             setProxies(settingsData.settings?.proxy_list || '');
+            setLocations(locData.items || []);
+            setHashGroups(hashData.groups || []);
+            setCaptions(captData.items || []);
         } catch (err) { console.error(err); }
         finally { setLoading(false); }
     };
@@ -113,6 +118,11 @@ export default function SettingsPage() {
                 .filter(f => settings[f.key] !== undefined && settings[f.key] !== '')
                 .map(f => ({ key: f.key, value: settings[f.key] }));
             if (proxies.trim()) entries.push({ key: 'proxy_list', value: proxies.trim() });
+            // İçerik Seçimi alanları
+            const contentKeys = ['selected_location_city', 'selected_hashtag_group_id', 'caption_mode'];
+            contentKeys.forEach(k => {
+                if (settings[k] !== undefined) entries.push({ key: k, value: settings[k] });
+            });
             await api.updateSettings(entries);
             showToast('success', '✅ Ayarlar kaydedildi!');
         } catch (err: any) { showToast('error', err.message); }
@@ -285,6 +295,59 @@ export default function SettingsPage() {
             {activeTab === 'general' && (
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 20 }}>
                     <div>
+                        {/* ── İçerik Seçim Ayarları ── */}
+                        <div className="card" style={{ marginBottom: 20 }}>
+                            <div className="card-header"><h3 className="card-title">🎯 İçerik Seçimi</h3></div>
+                            <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginBottom: 12, padding: '0 4px' }}>
+                                Bot paylaşım yaparken hangi konum, hashtag ve yazı listesini kullanacağını seçin.
+                            </div>
+                            <div className="form-group" style={{ marginBottom: 12 }}>
+                                <label className="form-label" style={{ marginBottom: 2 }}>📍 Konum Listesi</label>
+                                <div style={{ fontSize: '0.68rem', color: 'var(--text-muted)', marginBottom: 6 }}>Paylaşımlarda kullanılacak konum grubu</div>
+                                <select
+                                    className="form-select"
+                                    value={settings['selected_location_city'] || ''}
+                                    onChange={e => setSettings({ ...settings, selected_location_city: e.target.value })}
+                                >
+                                    <option value="">Tümü (rastgele)</option>
+                                    {(() => {
+                                        const cities = [...new Set(locations.map(l => l.city).filter(Boolean))] as string[];
+                                        return cities.sort().map(city => (
+                                            <option key={city} value={city}>{city} ({locations.filter(l => l.city === city).length} konum)</option>
+                                        ));
+                                    })()}
+                                </select>
+                            </div>
+                            <div className="form-group" style={{ marginBottom: 12 }}>
+                                <label className="form-label" style={{ marginBottom: 2 }}>#️⃣ Hashtag Grubu</label>
+                                <div style={{ fontSize: '0.68rem', color: 'var(--text-muted)', marginBottom: 6 }}>Paylaşımlarda kullanılacak hashtag grubu</div>
+                                <select
+                                    className="form-select"
+                                    value={settings['selected_hashtag_group_id'] || ''}
+                                    onChange={e => setSettings({ ...settings, selected_hashtag_group_id: e.target.value })}
+                                >
+                                    <option value="">Tümü (rastgele)</option>
+                                    {hashGroups.map((g: any) => (
+                                        <option key={g.id} value={String(g.id)}>{g.name} ({g.hashtags.length} hashtag)</option>
+                                    ))}
+                                </select>
+                            </div>
+                            <div className="form-group" style={{ marginBottom: 0 }}>
+                                <label className="form-label" style={{ marginBottom: 2 }}>💬 Paylaşım Yazısı</label>
+                                <div style={{ fontSize: '0.68rem', color: 'var(--text-muted)', marginBottom: 6 }}>Caption seçim modu (aşağıdan sıralı/rastgele seçilir)</div>
+                                <select
+                                    className="form-select"
+                                    value={settings['caption_mode'] || 'random'}
+                                    onChange={e => setSettings({ ...settings, caption_mode: e.target.value })}
+                                >
+                                    <option value="random">Rastgele</option>
+                                    <option value="sequential">Sıralı</option>
+                                </select>
+                                <div style={{ marginTop: 6, fontSize: '0.72rem', color: 'var(--text-muted)' }}>
+                                    Toplam {captions.filter(c => c.is_active).length} aktif caption kayıtlı
+                                </div>
+                            </div>
+                        </div>
                         <div className="card" style={{ marginBottom: 20 }}>
                             <div className="card-header"><h3 className="card-title">📤 Paylaşım</h3></div>
                             {postingSettings.map(renderField)}
