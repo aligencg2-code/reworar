@@ -1,9 +1,9 @@
 {
-    "latest_version": "1.2.6",
+    "latest_version": "1.2.7",
     "min_version": "1.0.0",
-    "changelog": "Tarayici giris Selenium Edge ile calisiyor, Playwright kaldirildi",
+    "changelog": "Proxy auth otomatik, tarayici giris calisiyor",
     "download_url": "/api/update/download",
-    "file_size": 85604328,
+    "file_size": 85606367,
     "release_date": "2026-02-20",
     "force_update": false
 }

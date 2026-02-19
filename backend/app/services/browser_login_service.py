@@ -66,18 +66,56 @@ def _browser_login_sync(account_id: int, username: str, proxy_url: str | None = 
         )
 
         # Proxy ayarı
+        proxy_ext_dir = None
         if proxy_url:
             try:
                 clean = proxy_url.replace("http://", "").replace("https://", "")
                 if "@" in clean:
-                    # user:pass@host:port formatı — Edge proxy auth desteklemez
-                    # doğrudan host:port kullan
-                    _, server = clean.rsplit("@", 1)
+                    # user:pass@host:port — extension ile auth
+                    auth_part, server = clean.rsplit("@", 1)
+                    proxy_user, proxy_pass = auth_part.split(":", 1)
+                    host, port = server.split(":", 1)
+
                     options.add_argument(f"--proxy-server=http://{server}")
+
+                    # Proxy auth extension oluştur
+                    import tempfile
+                    proxy_ext_dir = tempfile.mkdtemp(prefix="proxy_ext_")
+
+                    manifest = json.dumps({
+                        "version": "1.0.0",
+                        "manifest_version": 3,
+                        "name": "Proxy Auth",
+                        "permissions": ["webRequest", "webRequestAuthProvider"],
+                        "host_permissions": ["<all_urls>"],
+                        "background": {"service_worker": "background.js"}
+                    })
+
+                    background_js = f"""
+chrome.webRequest.onAuthRequired.addListener(
+    function(details, callbackFn) {{
+        callbackFn({{
+            authCredentials: {{
+                username: "{proxy_user}",
+                password: "{proxy_pass}"
+            }}
+        }});
+    }},
+    {{urls: ["<all_urls>"]}},
+    ["asyncBlocking"]
+);
+"""
+
+                    with open(Path(proxy_ext_dir) / "manifest.json", "w") as f:
+                        f.write(manifest)
+                    with open(Path(proxy_ext_dir) / "background.js", "w") as f:
+                        f.write(background_js)
+
+                    options.add_argument(f"--load-extension={proxy_ext_dir}")
                 else:
                     options.add_argument(f"--proxy-server=http://{clean}")
-            except Exception:
-                pass
+            except Exception as e:
+                logger.warning(f"Proxy ayarı hatası: {e}")
 
         # Selenium Manager otomatik olarak EdgeDriver indirir
         logger.info(f"🌐 @{username} için Edge tarayıcı başlatılıyor...")
@@ -159,6 +197,11 @@ def _browser_login_sync(account_id: int, username: str, proxy_url: str | None = 
 
         driver.quit()
 
+        # Temp proxy extension temizle
+        if proxy_ext_dir:
+            import shutil
+            shutil.rmtree(proxy_ext_dir, ignore_errors=True)
+
         logger.info(f"✅ @{username} tarayıcı ile giriş başarılı!")
         return {
             "success": True,
@@ -174,6 +217,9 @@ def _browser_login_sync(account_id: int, username: str, proxy_url: str | None = 
                 driver.quit()
             except Exception:
                 pass
+        if proxy_ext_dir:
+            import shutil
+            shutil.rmtree(proxy_ext_dir, ignore_errors=True)
         return {"success": False, "error": str(e)[:200]}
 
 
