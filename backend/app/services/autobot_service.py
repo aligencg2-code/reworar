@@ -369,15 +369,15 @@ class AutoBotService:
         from app.models.location import Location
         from app.models.settings import SystemSettings
         try:
-            # Seçili şehir filtresi
-            selected_city = None
-            city_setting = db.query(SystemSettings).filter(SystemSettings.key == "selected_location_city").first()
-            if city_setting and city_setting.value:
-                selected_city = city_setting.value
+            # Seçili liste filtresi
+            selected_list = None
+            list_setting = db.query(SystemSettings).filter(SystemSettings.key == "selected_location_list").first()
+            if list_setting and list_setting.value:
+                selected_list = list_setting.value
 
             query = db.query(Location).filter(Location.is_active == True)
-            if selected_city:
-                query = query.filter(Location.city == selected_city)
+            if selected_list:
+                query = query.filter(Location.list_name == selected_list)
             locations = query.all()
             if locations:
                 loc = random.choice(locations)

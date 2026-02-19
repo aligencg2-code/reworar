@@ -286,7 +286,7 @@ export default function PostsPage() {
                         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
                             <div style={{ padding: '8px 12px', borderRadius: 8, background: 'var(--bg-surface)', fontSize: '0.78rem' }}>
                                 <div style={{ color: 'var(--text-muted)', fontSize: '0.68rem', marginBottom: 2 }}>📍 Konum</div>
-                                <div style={{ fontWeight: 600 }}>{settings.selected_location_city || 'Tümü'}</div>
+                                <div style={{ fontWeight: 600 }}>{settings.selected_location_list || 'Tümü'}</div>
                             </div>
                             <div style={{ padding: '8px 12px', borderRadius: 8, background: 'var(--bg-surface)', fontSize: '0.78rem' }}>
                                 <div style={{ color: 'var(--text-muted)', fontSize: '0.68rem', marginBottom: 2 }}>#️⃣ Hashtag</div>

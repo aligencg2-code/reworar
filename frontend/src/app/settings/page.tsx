@@ -119,7 +119,7 @@ export default function SettingsPage() {
                 .map(f => ({ key: f.key, value: settings[f.key] }));
             if (proxies.trim()) entries.push({ key: 'proxy_list', value: proxies.trim() });
             // İçerik Seçimi alanları
-            const contentKeys = ['selected_location_city', 'selected_hashtag_group_id', 'caption_mode'];
+            const contentKeys = ['selected_location_list', 'selected_hashtag_group_id', 'caption_mode'];
             contentKeys.forEach(k => {
                 if (settings[k] !== undefined) entries.push({ key: k, value: settings[k] });
             });
@@ -303,17 +303,17 @@ export default function SettingsPage() {
                             </div>
                             <div className="form-group" style={{ marginBottom: 12 }}>
                                 <label className="form-label" style={{ marginBottom: 2 }}>📍 Konum Listesi</label>
-                                <div style={{ fontSize: '0.68rem', color: 'var(--text-muted)', marginBottom: 6 }}>Paylaşımlarda kullanılacak konum grubu</div>
+                                <div style={{ fontSize: '0.68rem', color: 'var(--text-muted)', marginBottom: 6 }}>Paylaşımlarda kullanılacak konum listesi</div>
                                 <select
                                     className="form-select"
-                                    value={settings['selected_location_city'] || ''}
-                                    onChange={e => setSettings({ ...settings, selected_location_city: e.target.value })}
+                                    value={settings['selected_location_list'] || ''}
+                                    onChange={e => setSettings({ ...settings, selected_location_list: e.target.value })}
                                 >
                                     <option value="">Tümü (rastgele)</option>
                                     {(() => {
-                                        const cities = [...new Set(locations.map(l => l.city).filter(Boolean))] as string[];
-                                        return cities.sort().map(city => (
-                                            <option key={city} value={city}>{city} ({locations.filter(l => l.city === city).length} konum)</option>
+                                        const listNames = [...new Set(locations.map((l: any) => l.list_name).filter(Boolean))] as string[];
+                                        return listNames.sort().map(name => (
+                                            <option key={name} value={name}>{name} ({locations.filter((l: any) => l.list_name === name).length} konum)</option>
                                         ));
                                     })()}
                                 </select>

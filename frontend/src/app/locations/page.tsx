@@ -212,7 +212,7 @@ export default function LocationsPage() {
             {showAdd && (
                 <div className="card" style={{ marginBottom: 16, padding: 20 }}>
                     <h3 style={{ marginBottom: 12, fontSize: '0.95rem', fontWeight: 700 }}>📍 Yeni Konum</h3>
-                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 12 }}>
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
                         <div className="form-group">
                             <label className="form-label">Liste *</label>
                             <select className="form-select" value={newLoc.list_name || activeList || ''}
@@ -225,11 +225,6 @@ export default function LocationsPage() {
                             <label className="form-label">Konum Adı *</label>
                             <input className="form-input" placeholder="Örn: Taksim Meydanı" value={newLoc.name}
                                 onChange={e => setNewLoc({ ...newLoc, name: e.target.value })} />
-                        </div>
-                        <div className="form-group">
-                            <label className="form-label">Şehir</label>
-                            <input className="form-input" placeholder="Örn: İstanbul" value={newLoc.city}
-                                onChange={e => setNewLoc({ ...newLoc, city: e.target.value })} />
                         </div>
                     </div>
                     <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end', marginTop: 12 }}>
@@ -259,14 +254,12 @@ export default function LocationsPage() {
                         </div>
                     </div>
                     <div className="info-box blue" style={{ marginBottom: 12 }}>
-                        Her satır: <code style={{ background: 'rgba(255,255,255,0.1)', padding: '2px 6px', borderRadius: 4 }}>
-                            konum_adı|şehir
-                        </code>
+                        Her satıra bir konum adı yazın (şehir gerekmez)
                     </div>
                     <textarea
                         className="form-input"
                         rows={8}
-                        placeholder={`Taksim Meydanı|İstanbul\nKızılay|Ankara\nKaleiçi|Antalya\nKapadokya|Nevşehir`}
+                        placeholder={`Altunizade Residences\nBakırköy Sahil\nKadıköy Moda\nBeşiktaş Meydanı\nÜsküdar Çamlıca`}
                         value={bulkText}
                         onChange={e => setBulkText(e.target.value)}
                         style={{ fontFamily: 'monospace', fontSize: '0.82rem', marginBottom: 12 }}
