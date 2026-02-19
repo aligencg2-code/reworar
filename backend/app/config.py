@@ -23,7 +23,7 @@ class Settings(BaseSettings):
 
     # --- Uygulama ---
     APP_NAME: str = "Instabot"
-    APP_VERSION: str = "1.2.3"
+    APP_VERSION: str = "1.2.4"
     APP_DEBUG: bool = True
     SECRET_KEY: str = "change-me-in-production-use-openssl-rand-hex-32"
 

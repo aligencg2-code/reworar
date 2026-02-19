@@ -1,9 +1,9 @@
 {
-    "latest_version": "1.2.3",
+    "latest_version": "1.2.4",
     "min_version": "1.0.0",
-    "changelog": "Proxy IP tutarlilik, insan davranisi simulasyonu, DB migration fix, dependency fix",
+    "changelog": "Dependency bundling fix, DB migration fix, proxy IP tutarlilik, insan davranisi simulasyonu",
     "download_url": "/api/update/download",
-    "file_size": 36307460,
+    "file_size": 36306807,
     "release_date": "2026-02-19",
     "force_update": false
 }
