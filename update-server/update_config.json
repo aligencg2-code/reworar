@@ -1,9 +1,9 @@
 {
-  "latest_version": "1.2.4",
+  "latest_version": "1.2.5",
   "min_version": "1.0.0",
-  "changelog": "Dependency bundling fix, DB migration fix, proxy IP tutarlilik, insan davranisi simulasyonu",
-  "download_url": "updates/update-1.2.4.zip",
-  "file_size": 36306807,
+  "changelog": "Playwright tarayici destegi, otomatik Chromium indirme",
+  "download_url": "updates/update-1.2.5.zip",
+  "file_size": 74888428,
   "release_date": "2026-02-19",
   "force_update": false
 }

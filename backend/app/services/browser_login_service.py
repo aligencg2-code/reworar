@@ -30,12 +30,61 @@ async def browser_login(account_id: int, username: str, proxy_url: str | None = 
     )
 
 
-def _browser_login_sync(account_id: int, username: str, proxy_url: str | None = None) -> dict:
-    """Senkron tarayıcı giriş işlemi."""
+def _ensure_chromium():
+    """Playwright Chromium yoksa otomatik indirir."""
+    import subprocess, sys, os
     try:
         from playwright.sync_api import sync_playwright
+        # Chromium'un yüklü olup olmadığını kontrol et
+        try:
+            with sync_playwright() as p:
+                browser = p.chromium.launch(headless=True)
+                browser.close()
+            return True, None
+        except Exception as e:
+            err = str(e)
+            if "Executable doesn't exist" in err or "browserType.launch" in err:
+                logger.info("🔄 Chromium indiriliyor (ilk kullanım)...")
+                # Playwright CLI ile chromium indir
+                try:
+                    if getattr(sys, 'frozen', False):
+                        # PyInstaller ortamında playwright CLI
+                        playwright_module = Path(sys._MEIPASS) / "playwright"
+                        driver_cli = playwright_module / "driver" / "package" / "cli.js"
+                        node_exe = playwright_module / "driver" / "node.exe"
+                        if driver_cli.exists() and node_exe.exists():
+                            subprocess.run(
+                                [str(node_exe), str(driver_cli), "install", "chromium"],
+                                check=True, timeout=300
+                            )
+                        else:
+                            # Fallback: subprocess ile playwright install
+                            subprocess.run(
+                                [sys.executable, "-m", "playwright", "install", "chromium"],
+                                check=True, timeout=300
+                            )
+                    else:
+                        subprocess.run(
+                            [sys.executable, "-m", "playwright", "install", "chromium"],
+                            check=True, timeout=300
+                        )
+                    logger.info("✅ Chromium başarıyla indirildi!")
+                    return True, None
+                except Exception as install_err:
+                    return False, f"Chromium indirilemedi: {install_err}"
+            return False, f"Tarayıcı hatası: {err[:200]}"
     except ImportError:
-        return {"success": False, "error": "Playwright yüklü değil. 'pip install playwright && playwright install chromium' çalıştırın."}
+        return False, "Playwright yüklü değil."
+
+
+def _browser_login_sync(account_id: int, username: str, proxy_url: str | None = None) -> dict:
+    """Senkron tarayıcı giriş işlemi."""
+    # Chromium kontrolü — yoksa otomatik indir
+    ok, err = _ensure_chromium()
+    if not ok:
+        return {"success": False, "error": err}
+
+    from playwright.sync_api import sync_playwright
 
     try:
         with sync_playwright() as p:
