@@ -18,6 +18,7 @@ interface AccountInfo {
     login_method: string;
     proxy_url: string | null;
     account_status: string;
+    posts_per_session: number;
 }
 
 export default function AccountsPage() {
@@ -531,6 +532,7 @@ export default function AccountsPage() {
                                 <th>Hesap</th>
                                 <th>Oturum</th>
                                 <th>Durum</th>
+                                <th>Paylaşım</th>
                                 <th>Son Giriş</th>
                                 <th>Proxy</th>
                                 <th>İşlemler</th>
@@ -569,6 +571,9 @@ export default function AccountsPage() {
                                             style={{ fontSize: '0.65rem' }}>
                                             {acc.account_status || 'bilinmiyor'}
                                         </span>
+                                    </td>
+                                    <td style={{ textAlign: 'center', fontSize: '0.8rem', fontWeight: 600 }}>
+                                        {acc.posts_per_session || 1}
                                     </td>
                                     <td style={{ fontSize: '0.72rem', color: 'var(--text-secondary)' }}>
                                         {acc.last_login_at ? new Date(acc.last_login_at).toLocaleString('tr-TR') : '—'}

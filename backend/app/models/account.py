@@ -68,6 +68,7 @@ class Account(Base):
 
     # Hesap ayarları
     daily_post_limit: Mapped[int] = mapped_column(Integer, default=10)
+    posts_per_session: Mapped[int] = mapped_column(Integer, default=1)  # Her giriş başına paylaşım
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)
     auto_publish: Mapped[bool] = mapped_column(Boolean, default=False)
 

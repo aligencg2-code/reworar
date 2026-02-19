@@ -63,6 +63,19 @@ async def upload_media(
                 thumbnail_path = media_service.create_thumbnail(str(file_path))
             except Exception:
                 pass
+        elif media_type in ("video", "reels"):
+            # Video thumbnail oluştur
+            try:
+                thumbnail_path = media_service.create_video_thumbnail(str(file_path))
+            except Exception:
+                pass
+            # Video boyutları
+            try:
+                dims = media_service.get_video_dimensions(str(file_path))
+                if dims:
+                    width, height = dims
+            except Exception:
+                pass
 
         media = Media(
             account_id=account_id,

@@ -139,5 +139,64 @@ class MediaService:
             pass
         return img
 
+    def create_video_thumbnail(self, video_path: str) -> str | None:
+        """Video dosyasından thumbnail oluşturur (ffmpeg ile)."""
+        import subprocess
+        filename = f"thumb_{Path(video_path).stem}.jpg"
+        thumb_path = settings.UPLOAD_DIR / "thumbnails" / filename
+        thumb_path.parent.mkdir(parents=True, exist_ok=True)
+
+        try:
+            # ffmpeg ile 1. saniyeden frame al
+            subprocess.run([
+                "ffmpeg", "-y", "-i", str(video_path),
+                "-ss", "00:00:01", "-vframes", "1",
+                "-vf", "scale=300:-1",
+                str(thumb_path),
+            ], capture_output=True, timeout=15, check=True)
+
+            if thumb_path.exists() and thumb_path.stat().st_size > 0:
+                logger.info(f"Video thumbnail oluşturuldu: {thumb_path}")
+                return str(thumb_path)
+        except (subprocess.SubprocessError, FileNotFoundError):
+            # ffmpeg yoksa placeholder oluştur
+            try:
+                img = Image.new('RGB', (300, 300), color=(30, 30, 40))
+                from PIL import ImageDraw
+                draw = ImageDraw.Draw(img)
+                # Play butonu çiz
+                draw.polygon([(120, 100), (120, 200), (200, 150)], fill=(255, 255, 255))
+                img.save(str(thumb_path), "JPEG", quality=80)
+                logger.info(f"Video placeholder thumbnail oluşturuldu: {thumb_path}")
+                return str(thumb_path)
+            except Exception:
+                pass
+        except Exception as e:
+            logger.warning(f"Video thumbnail hatası: {e}")
+
+        return None
+
+    def get_video_dimensions(self, video_path: str) -> tuple[int, int] | None:
+        """Video boyutlarını döndürür (ffprobe ile)."""
+        import subprocess, json
+        try:
+            result = subprocess.run([
+                "ffprobe", "-v", "quiet",
+                "-select_streams", "v:0",
+                "-show_entries", "stream=width,height",
+                "-of", "json",
+                str(video_path),
+            ], capture_output=True, text=True, timeout=10)
+            data = json.loads(result.stdout)
+            stream = data.get("streams", [{}])[0]
+            w = stream.get("width")
+            h = stream.get("height")
+            if w and h:
+                return (int(w), int(h))
+        except Exception:
+            pass
+        return None
+
 
 media_service = MediaService()
+

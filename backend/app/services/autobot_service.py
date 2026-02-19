@@ -132,13 +132,23 @@ class AutoBotService:
                             self._add_log("info", f"⏳ @{account.username} cooldown — {remaining} dk kaldı")
                             continue
 
-                        # Paylaşım yap
+                        # Paylaşım yap — posts_per_session kadar
                         self._current_account = account.username
-                        success = await self._publish_for_account(db, account)
+                        session_count = getattr(account, 'posts_per_session', 1) or 1
+                        for post_idx in range(session_count):
+                            if not self._running:
+                                break
 
-                        if success:
-                            self._posts_made += 1
-                            self._last_publish[account.id] = datetime.utcnow()
+                            success = await self._publish_for_account(db, account)
+                            if success:
+                                self._posts_made += 1
+                                self._last_publish[account.id] = datetime.utcnow()
+
+                            # Aynı hesaptan birden fazla paylaşım arasında kısa bekleme
+                            if post_idx < session_count - 1 and self._running:
+                                mini_delay = random.randint(60, 120)
+                                self._add_log("info", f"⏳ @{account.username} sıradaki paylaşım için {mini_delay}s bekleniyor ({post_idx+1}/{session_count})")
+                                await self._safe_sleep(mini_delay)
 
                         # Bir sonraki hesaba geçmeden önce bekle
                         if self._running:

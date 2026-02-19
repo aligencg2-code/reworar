@@ -32,6 +32,7 @@ def _get_account_dir(username: str) -> Path:
 
 class AccountUpdate(BaseModel):
     daily_post_limit: int | None = None
+    posts_per_session: int | None = None
     is_active: bool | None = None
     auto_publish: bool | None = None
     photo_percentage: int | None = None
@@ -53,6 +54,7 @@ class AccountResponse(BaseModel):
     following_count: int
     media_count: int
     daily_post_limit: int
+    posts_per_session: int
     is_active: bool
     auto_publish: bool
     photo_percentage: int
@@ -88,6 +90,7 @@ async def list_accounts(
             "following_count": acc.following_count,
             "media_count": acc.media_count,
             "daily_post_limit": acc.daily_post_limit,
+            "posts_per_session": getattr(acc, 'posts_per_session', 1) or 1,
             "is_active": acc.is_active,
             "auto_publish": acc.auto_publish,
             "photo_percentage": acc.photo_percentage,
