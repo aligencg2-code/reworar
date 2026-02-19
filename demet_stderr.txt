@@ -1,5 +1,5 @@
-2026-02-20 00:12:07,297 | INFO     | proxy_pool:load_proxies:52 | \U0001f310 Proxy havuzu güncellendi: 1 proxy
-2026-02-20 00:12:07,356 | INFO     | main:lifespan:32 | \U0001f680 Demet v1.2.5 baþlatýlýyor...
-2026-02-20 00:12:07,557 | INFO     | main:lifespan:34 | \u2705 Veritabaný tablolarý oluþturuldu
-2026-02-20 00:12:07,764 | INFO     | main:_create_default_admin:83 | \U0001f511 Varsayýlan admin kullanýcý oluþturuldu (admin/admin123)
-2026-02-20 00:12:07,768 | INFO     | main:lifespan:56 | \u23f0 Zamanlayýcý ve yedekleme görevleri baþlatýldý
+2026-02-20 00:44:39,403 | INFO     | proxy_pool:load_proxies:52 | \U0001f310 Proxy havuzu güncellendi: 1 proxy
+2026-02-20 00:44:39,463 | INFO     | main:lifespan:32 | \U0001f680 Demet v1.2.6 baþlatýlýyor...
+2026-02-20 00:44:39,532 | INFO     | main:lifespan:34 | \u2705 Veritabaný tablolarý oluþturuldu
+2026-02-20 00:44:39,738 | INFO     | main:_create_default_admin:83 | \U0001f511 Varsayýlan admin kullanýcý oluþturuldu (admin/admin123)
+2026-02-20 00:44:39,742 | INFO     | main:lifespan:56 | \u23f0 Zamanlayýcý ve yedekleme görevleri baþlatýldý

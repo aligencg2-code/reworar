@@ -1,9 +1,9 @@
 {
-  "latest_version": "1.2.5",
+  "latest_version": "1.2.6",
   "min_version": "1.0.0",
-  "changelog": "Playwright tarayici destegi, Chromium otomatik indirme",
-  "download_url": "updates/update-1.2.5.zip",
-  "file_size": 37035312,
+  "changelog": "Tarayici giris Selenium Edge ile calisiyor, Playwright kaldirildi",
+  "download_url": "updates/update-1.2.6.zip",
+  "file_size": 85604328,
   "release_date": "2026-02-20",
   "force_update": false
 }

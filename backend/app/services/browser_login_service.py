@@ -1,11 +1,15 @@
-# services/browser_login_service.py — Tarayıcı ile Instagram girişi
+# services/browser_login_service.py — Selenium Edge ile Instagram girişi
 """
-Playwright ile tarayıcı penceresi açar, kullanıcı giriş yapar,
-cookie'ler ve session bilgisi kaydedilir.
+Selenium + Microsoft Edge ile tarayıcı penceresi açar,
+kullanıcı giriş yapar, cookie'ler ve session bilgisi kaydedilir.
+
+Edge her Windows 10/11'de varsayılan olarak yüklü.
+EdgeDriver otomatik olarak Selenium Manager tarafından indirilir.
 """
 import asyncio
 import json
 import logging
+import time
 from pathlib import Path
 from concurrent.futures import ThreadPoolExecutor
 
@@ -20,7 +24,7 @@ SESSIONS_DIR.mkdir(parents=True, exist_ok=True)
 
 async def browser_login(account_id: int, username: str, proxy_url: str | None = None) -> dict:
     """
-    Playwright ile Instagram tarayıcı girişi.
+    Selenium Edge ile Instagram tarayıcı girişi.
     Tarayıcı penceresi açar, kullanıcı giriş yapar,
     Instagram cookie'leri kaydedilir.
     """
@@ -30,173 +34,146 @@ async def browser_login(account_id: int, username: str, proxy_url: str | None = 
     )
 
 
-def _ensure_chromium():
-    """Playwright Chromium yoksa otomatik indirir."""
-    import subprocess, sys
-    try:
-        from playwright.sync_api import sync_playwright
-    except ImportError:
-        return False, "Playwright yüklü değil."
-
-    # Chromium'un yüklü olup olmadığını kontrol et
-    try:
-        with sync_playwright() as p:
-            browser = p.chromium.launch(headless=True)
-            browser.close()
-        return True, None
-    except Exception as e:
-        err = str(e)
-        if "Executable doesn't exist" not in err and "browserType.launch" not in err:
-            return False, f"Tarayıcı hatası: {err[:200]}"
-
-    # Chromium yüklü değil — otomatik indir
-    logger.info("🔄 Chromium indiriliyor (ilk kullanım — bu birkaç dakika sürebilir)...")
-    try:
-        # playwright'in kendi install komutunu kullan
-        from playwright._impl._driver import compute_driver_executable
-        driver_exec = compute_driver_executable()
-        if isinstance(driver_exec, tuple):
-            # Bazı versiyonlarda (node_exe, cli_js) tuple döner
-            node_exe, cli_js = driver_exec
-            subprocess.run(
-                [str(node_exe), str(cli_js), "install", "chromium"],
-                check=True, timeout=300
-            )
-        else:
-            subprocess.run(
-                [str(driver_exec), "install", "chromium"],
-                check=True, timeout=300
-            )
-        logger.info("✅ Chromium başarıyla indirildi!")
-        return True, None
-    except Exception:
-        # Fallback — doğrudan subprocess ile çalıştır
-        try:
-            subprocess.run(
-                [sys.executable, "-m", "playwright", "install", "chromium"],
-                check=True, timeout=300
-            )
-            logger.info("✅ Chromium başarıyla indirildi! (fallback)")
-            return True, None
-        except Exception as e2:
-            return False, f"Chromium indirilemedi: {e2}"
-
-
 def _browser_login_sync(account_id: int, username: str, proxy_url: str | None = None) -> dict:
-    """Senkron tarayıcı giriş işlemi."""
-    # Chromium kontrolü — yoksa otomatik indir
-    ok, err = _ensure_chromium()
-    if not ok:
-        return {"success": False, "error": err}
-
-    from playwright.sync_api import sync_playwright
-
+    """Senkron tarayıcı giriş işlemi — Selenium Edge."""
     try:
-        with sync_playwright() as p:
-            # Proxy ayarı
-            browser_args = {}
-            if proxy_url:
-                try:
-                    parts = proxy_url.replace("http://", "").replace("https://", "")
-                    if "@" in parts:
-                        auth, server = parts.rsplit("@", 1)
-                        user, pwd = auth.split(":", 1)
-                        browser_args["proxy"] = {
-                            "server": f"http://{server}",
-                            "username": user,
-                            "password": pwd,
-                        }
-                    else:
-                        browser_args["proxy"] = {"server": f"http://{parts}"}
-                except Exception:
-                    pass
+        from selenium import webdriver
+        from selenium.webdriver.edge.options import Options
+        from selenium.webdriver.edge.service import Service
+        from selenium.webdriver.common.by import By
+    except ImportError:
+        return {"success": False, "error": "Selenium yüklü değil."}
 
-            # Tarayıcı başlat (headful — kullanıcı görecek)
-            browser = p.chromium.launch(
-                headless=False,
-                args=[
-                    "--disable-blink-features=AutomationControlled",
-                    "--no-sandbox",
-                ],
-                **browser_args,
-            )
+    driver = None
+    try:
+        # Edge seçenekleri
+        options = Options()
+        options.add_argument("--disable-blink-features=AutomationControlled")
+        options.add_argument("--no-sandbox")
+        options.add_argument("--disable-dev-shm-usage")
+        options.add_argument("--window-size=430,932")
+        options.add_argument("--lang=tr-TR")
 
-            context = browser.new_context(
-                viewport={"width": 430, "height": 932},
-                user_agent="Mozilla/5.0 (iPhone; CPU iPhone OS 17_5 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.5 Mobile/15E148 Safari/604.1",
-                locale="tr-TR",
-            )
+        # Bot tespitini engelle
+        options.add_experimental_option("excludeSwitches", ["enable-automation"])
+        options.add_experimental_option("useAutomationExtension", False)
 
-            page = context.new_page()
-            page.goto("https://www.instagram.com/accounts/login/", wait_until="networkidle", timeout=30000)
+        # Mobil User-Agent
+        options.add_argument(
+            "--user-agent=Mozilla/5.0 (iPhone; CPU iPhone OS 17_5 like Mac OS X) "
+            "AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.5 "
+            "Mobile/15E148 Safari/604.1"
+        )
 
-            # Eğer username biliyorsak doldur
+        # Proxy ayarı
+        if proxy_url:
             try:
-                page.fill('input[name="username"]', username, timeout=5000)
+                clean = proxy_url.replace("http://", "").replace("https://", "")
+                if "@" in clean:
+                    # user:pass@host:port formatı — Edge proxy auth desteklemez
+                    # doğrudan host:port kullan
+                    _, server = clean.rsplit("@", 1)
+                    options.add_argument(f"--proxy-server=http://{server}")
+                else:
+                    options.add_argument(f"--proxy-server=http://{clean}")
             except Exception:
                 pass
 
-            logger.info(f"🌐 @{username} için tarayıcı penceresi açıldı — giriş bekleniyor...")
+        # Selenium Manager otomatik olarak EdgeDriver indirir
+        logger.info(f"🌐 @{username} için Edge tarayıcı başlatılıyor...")
+        driver = webdriver.Edge(options=options)
 
-            # Kullanıcı giriş yapana kadar bekle (max 5 dk)
-            # Giriş başarılı olduğunda URL değişir veya ana sayfaya yönlenir
-            try:
-                page.wait_for_url(
-                    lambda url: "instagram.com" in url and "/accounts/login" not in url,
-                    timeout=300000,  # 5 dakika
-                )
-            except Exception:
-                browser.close()
-                return {"success": False, "error": "Giriş zaman aşımına uğradı (5 dk)"}
+        # Bot tespitinden kaçınmak için navigator.webdriver'ı gizle
+        driver.execute_cdp_cmd(
+            "Page.addScriptToEvaluateOnNewDocument",
+            {"source": "Object.defineProperty(navigator, 'webdriver', {get: () => undefined})"},
+        )
 
-            # Kısa bekleme — sayfanın tam yüklenmesi için
-            page.wait_for_timeout(3000)
+        # Instagram login sayfasına git
+        driver.get("https://www.instagram.com/accounts/login/")
 
-            # Cookie'leri al
-            cookies = context.cookies()
-            ig_cookies = [c for c in cookies if "instagram.com" in c.get("domain", "")]
+        # Sayfanın yüklenmesini bekle
+        time.sleep(3)
 
-            if not ig_cookies:
-                browser.close()
-                return {"success": False, "error": "Instagram cookie'leri alınamadı"}
+        # Username doldur
+        try:
+            username_input = driver.find_element(By.CSS_SELECTOR, 'input[name="username"]')
+            username_input.clear()
+            username_input.send_keys(username)
+        except Exception:
+            pass
 
-            # session_id ve csrftoken kontrol
-            cookie_dict = {c["name"]: c["value"] for c in ig_cookies}
-            session_id = cookie_dict.get("sessionid", "")
+        logger.info(f"🌐 @{username} için tarayıcı penceresi açıldı — giriş bekleniyor...")
 
-            if not session_id:
-                browser.close()
-                return {"success": False, "error": "sessionid cookie'si bulunamadı — giriş başarısız"}
+        # Kullanıcının giriş yapmasını bekle (max 5 dk)
+        timeout = 300  # 5 dakika
+        start = time.time()
+        logged_in = False
 
-            # Cookie'leri dosyaya kaydet
-            session_file = SESSIONS_DIR / f"{username}_browser.json"
-            with open(session_file, "w") as f:
-                json.dump({
-                    "cookies": ig_cookies,
-                    "cookie_dict": cookie_dict,
-                    "session_id": session_id,
-                    "username": username,
-                    "account_id": account_id,
-                }, f, indent=2)
+        while time.time() - start < timeout:
+            current_url = driver.current_url
+            if "instagram.com" in current_url and "/accounts/login" not in current_url:
+                logged_in = True
+                break
+            time.sleep(2)
 
-            # instagrapi session oluştur (cookie'den)
-            try:
-                _create_instagrapi_session(username, cookie_dict)
-            except Exception as e:
-                logger.warning(f"instagrapi session oluşturulamadı: {e}")
+        if not logged_in:
+            driver.quit()
+            return {"success": False, "error": "Giriş zaman aşımına uğradı (5 dk)"}
 
-            browser.close()
+        # Sayfanın tam yüklenmesi için bekle
+        time.sleep(3)
 
-            logger.info(f"✅ @{username} tarayıcı ile giriş başarılı!")
-            return {
-                "success": True,
-                "username": username,
+        # Cookie'leri al
+        cookies = driver.get_cookies()
+        ig_cookies = [c for c in cookies if "instagram.com" in c.get("domain", "")]
+
+        if not ig_cookies:
+            driver.quit()
+            return {"success": False, "error": "Instagram cookie'leri alınamadı"}
+
+        # Cookie dict oluştur
+        cookie_dict = {c["name"]: c["value"] for c in ig_cookies}
+        session_id = cookie_dict.get("sessionid", "")
+
+        if not session_id:
+            driver.quit()
+            return {"success": False, "error": "sessionid cookie'si bulunamadı — giriş başarısız"}
+
+        # Cookie'leri dosyaya kaydet
+        session_file = SESSIONS_DIR / f"{username}_browser.json"
+        with open(session_file, "w") as f:
+            json.dump({
+                "cookies": ig_cookies,
+                "cookie_dict": cookie_dict,
                 "session_id": session_id,
-                "message": f"@{username} tarayıcı ile giriş başarılı",
-            }
+                "username": username,
+                "account_id": account_id,
+            }, f, indent=2)
+
+        # instagrapi session oluştur
+        try:
+            _create_instagrapi_session(username, cookie_dict)
+        except Exception as e:
+            logger.warning(f"instagrapi session oluşturulamadı: {e}")
+
+        driver.quit()
+
+        logger.info(f"✅ @{username} tarayıcı ile giriş başarılı!")
+        return {
+            "success": True,
+            "username": username,
+            "session_id": session_id,
+            "message": f"@{username} tarayıcı ile giriş başarılı",
+        }
 
     except Exception as e:
         logger.error(f"Tarayıcı giriş hatası @{username}: {e}")
+        if driver:
+            try:
+                driver.quit()
+            except Exception:
+                pass
         return {"success": False, "error": str(e)[:200]}
 
 
@@ -207,7 +184,6 @@ def _create_instagrapi_session(username: str, cookie_dict: dict):
     cl = Client()
     cl.delay_range = [1, 3]
 
-    # Cookie'leri set et
     session_data = {
         "uuids": {
             "phone_id": cl.phone_id,
