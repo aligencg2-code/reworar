@@ -103,6 +103,7 @@ async def upload_media(
 async def list_media(
     media_type: str | None = None,
     folder: str | None = None,
+    list_name: str | None = None,
     account_id: int | None = None,
     limit: int = 200,
     offset: int = 0,
@@ -120,6 +121,8 @@ async def list_media(
             pass
     if folder:
         query = query.filter(Media.folder == folder)
+    if list_name:
+        query = query.filter(Media.list_name == list_name)
     if account_id:
         query = query.filter(Media.account_id == account_id)
 
@@ -142,6 +145,13 @@ async def list_media(
         if m.folder
     ))
     all_folders.sort()
+
+    # Tüm benzersiz liste adları
+    all_lists = list(set(
+        m.list_name for m in db.query(Media.list_name).distinct().all()
+        if m.list_name
+    ))
+    all_lists.sort()
 
     def _build_file_url(media_item):
         """Dosyanın gerçek disk yolundan URL oluşturur."""
@@ -196,10 +206,13 @@ async def list_media(
                 "file_size": m.file_size,
                 "thumbnail_url": _build_thumb_url(m),
                 "file_url": _build_file_url(m),
-                "created_at": m.created_at.isoformat(),
+                "use_count": m.use_count,
+                "list_name": m.list_name,
+                "created_at": m.created_at.isoformat() if m.created_at else None,
             }
             for m in items
         ],
+        "lists": all_lists,
     }
 
 
@@ -255,3 +268,58 @@ async def delete_media(
     db.delete(media)
     db.commit()
     return {"message": "Medya silindi"}
+
+
+# ─── Medya Liste Yönetimi ───
+
+@router.get("/lists")
+async def get_media_lists(
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    """Tüm benzersiz medya liste adlarını döndürür."""
+    all_lists = list(set(
+        m.list_name for m in db.query(Media.list_name).distinct().all()
+        if m.list_name
+    ))
+    all_lists.sort()
+    return {"lists": all_lists}
+
+
+@router.put("/{media_id}/list")
+async def assign_media_list(
+    media_id: int,
+    data: dict,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    """Medyayı bir listeye atar veya listeden çıkarır."""
+    media = db.query(Media).filter(Media.id == media_id).first()
+    if not media:
+        raise HTTPException(status_code=404, detail="Medya bulunamadı")
+
+    new_list = data.get("list_name")  # None = listeden çıkar
+    media.list_name = new_list.strip() if new_list else None
+    db.commit()
+    return {"message": f"Medya {'listeye atandı' if new_list else 'listeden çıkarıldı'}", "list_name": media.list_name}
+
+
+@router.post("/lists/bulk-assign")
+async def bulk_assign_list(
+    data: dict,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    """Birden fazla medyayı aynı listeye toplu atar."""
+    media_ids = data.get("media_ids", [])
+    list_name = data.get("list_name")
+
+    if not media_ids:
+        raise HTTPException(status_code=400, detail="Medya ID'leri gerekli")
+
+    updated = db.query(Media).filter(Media.id.in_(media_ids)).update(
+        {Media.list_name: list_name.strip() if list_name else None},
+        synchronize_session=False,
+    )
+    db.commit()
+    return {"message": f"{updated} medya güncellendi", "list_name": list_name}

@@ -5,6 +5,28 @@ from typing import Optional
 from app.utils.logger import logger
 
 
+def normalize_proxy(raw: str | None) -> str | None:
+    """
+    Proxy formatını standartlaştırır.
+    Desteklenen formatlar:
+      host:port:user:pass → http://user:pass@host:port
+      host:port           → http://host:port
+      http://...          → olduğu gibi
+    """
+    if not raw or not raw.strip():
+        return None
+    raw = raw.strip()
+    # Zaten URL formatındaysa dokunma
+    if raw.lower().startswith(("http://", "https://", "socks4://", "socks5://")):
+        return raw
+    parts = raw.split(":")
+    if len(parts) == 4:
+        return f"http://{parts[2]}:{parts[3]}@{parts[0]}:{parts[1]}"
+    elif len(parts) == 2:
+        return f"http://{parts[0]}:{parts[1]}"
+    return None  # Geçersiz format
+
+
 class ProxyPool:
     """Round-robin proxy havuzu."""
 

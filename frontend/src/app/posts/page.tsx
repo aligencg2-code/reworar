@@ -38,7 +38,7 @@ export default function PostsPage() {
                 api.getAccounts(),
                 api.getPosts({ limit: '20' }),
                 api.getSettings(),
-                api.request<any>('/bot/status'),
+                api.request<any>('/dashboard/bot/status'),
             ]);
             setAccounts(accData || []);
             setPosts(postsData.posts || []);
@@ -55,11 +55,11 @@ export default function PostsPage() {
         setBotLoading(true);
         try {
             if (botRunning) {
-                await api.request('/bot/stop', { method: 'POST' });
+                await api.request('/dashboard/bot/stop', { method: 'POST' });
                 showToast('success', '⏹ Bot durduruldu');
                 setBotRunning(false);
             } else {
-                await api.request('/bot/start', { method: 'POST' });
+                await api.request('/dashboard/bot/start', { method: 'POST' });
                 showToast('success', '🚀 Bot başlatıldı');
                 setBotRunning(true);
             }
@@ -72,7 +72,7 @@ export default function PostsPage() {
         if (!botRunning) return;
         const iv = setInterval(async () => {
             try {
-                const s = await api.request<any>('/bot/status');
+                const s = await api.request<any>('/dashboard/bot/status');
                 setBotRunning(s.running || false);
                 if (s.logs) setBotLogs(s.logs);
             } catch { }
@@ -112,7 +112,7 @@ export default function PostsPage() {
     const submitChallenge = async () => {
         if (!challengeAccountId || !challengeCode.trim()) return;
         try {
-            const result = await api.request<any>('/accounts/challenge', {
+            const result = await api.request<any>('/accounts/submit-challenge-code', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ account_id: challengeAccountId, code: challengeCode.trim() }),
@@ -131,7 +131,7 @@ export default function PostsPage() {
     const handleBulkLogin = async () => {
         setBotLoading(true);
         try {
-            const result = await api.request<any>('/accounts/login-bulk', { method: 'POST' });
+            const result = await api.request<any>('/accounts/bulk-login', { method: 'POST' });
             if (result.results) {
                 const ok = result.results.filter((r: any) => r.success).length;
                 const fail = result.results.filter((r: any) => !r.success).length;

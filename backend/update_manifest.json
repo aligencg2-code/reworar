@@ -1,9 +1,9 @@
 {
-    "latest_version": "1.0.5",
+    "latest_version": "1.2.3",
     "min_version": "1.0.0",
-    "changelog": "İndirme sayfasına hesap seçimi eklendi - artık hangi aktif hesapla indireceğinizi seçebilirsiniz",
+    "changelog": "Proxy IP tutarlilik duzeltmeleri, insan davranisi simulasyonu, hesap bazli icerik izolasyonu",
     "download_url": "/api/update/download",
-    "file_size": 176870024,
+    "file_size": 11114590,
     "release_date": "2026-02-19",
     "force_update": false
 }

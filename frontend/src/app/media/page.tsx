@@ -9,6 +9,7 @@ interface MediaItem {
     original_filename: string;
     media_type: string;
     folder: string;
+    list_name: string | null;
     width: number | null;
     height: number | null;
     file_size: number;
@@ -28,11 +29,13 @@ export default function MediaPage() {
     const [folders, setFolders] = useState<string[]>([]);
     const [total, setTotal] = useState(0);
     const [loading, setLoading] = useState(true);
-    const [filter, setFilter] = useState({ media_type: '', folder: '', account_id: '' });
+    const [filter, setFilter] = useState({ media_type: '', folder: '', list_name: '', account_id: '' });
     const [uploading, setUploading] = useState(false);
     const [accounts, setAccounts] = useState<AccountOption[]>([]);
     const [lightbox, setLightbox] = useState<MediaItem | null>(null);
     const [toast, setToast] = useState<{ type: string; message: string } | null>(null);
+    const [lists, setLists] = useState<string[]>([]);
+    const [newListName, setNewListName] = useState('');
     const fileInputRef = useRef<HTMLInputElement>(null);
 
     const showToast = (type: string, message: string) => {
@@ -55,11 +58,13 @@ export default function MediaPage() {
             const params: Record<string, string> = {};
             if (filter.media_type) params.media_type = filter.media_type;
             if (filter.folder) params.folder = filter.folder;
+            if (filter.list_name) params.list_name = filter.list_name;
             if (filter.account_id) params.account_id = filter.account_id;
             const data = await api.getMedia(params);
             setMedia(data.items || []);
             setCounts(data.counts || {});
             setFolders(data.folders || []);
+            setLists(data.lists || []);
             setTotal(data.total || 0);
         } catch (err) { console.error(err); }
         finally { setLoading(false); }
@@ -91,6 +96,18 @@ export default function MediaPage() {
         if (!confirm('Bu medyayı silmek istediğinize emin misiniz?')) return;
         try { await api.deleteMedia(id); loadMedia(); showToast('success', '🗑️ Silindi'); }
         catch (err: any) { showToast('error', err.message); }
+    };
+
+    const handleAssignList = async (mediaId: number, listName: string | null) => {
+        try {
+            await api.request<any>(`/media/${mediaId}/list`, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ list_name: listName }),
+            });
+            showToast('success', listName ? `📋 "${listName}" listesine atandı` : '📋 Listeden çıkarıldı');
+            loadMedia();
+        } catch (err: any) { showToast('error', err.message); }
     };
 
     const formatSize = (bytes: number) => {
@@ -260,6 +277,27 @@ export default function MediaPage() {
                 </div>
             )}
 
+            {/* Liste Filtreleri */}
+            {lists.length > 0 && (
+                <div className="tabs" style={{ marginTop: 8 }}>
+                    <div
+                        className={`tab ${filter.list_name === '' ? 'active' : ''}`}
+                        onClick={() => setFilter({ ...filter, list_name: '' })}
+                    >
+                        📋 Tüm Listeler
+                    </div>
+                    {lists.map(l => (
+                        <div
+                            key={l}
+                            className={`tab ${filter.list_name === l ? 'active' : ''}`}
+                            onClick={() => setFilter({ ...filter, list_name: l })}
+                        >
+                            🏷️ {l}
+                        </div>
+                    ))}
+                </div>
+            )}
+
             {/* Medya Grid */}
             {media.length === 0 ? (
                 <div className="empty-state">
@@ -333,6 +371,18 @@ export default function MediaPage() {
                                             </>
                                         )}
                                         <button className="btn btn-sm btn-danger" onClick={() => handleDelete(m.id)}>🗑️</button>
+                                    </div>
+                                    {/* Liste Atama */}
+                                    <div style={{ display: 'flex', gap: 4, marginTop: 4, alignItems: 'center' }} onClick={e => e.stopPropagation()}>
+                                        <select
+                                            className="form-select"
+                                            value={m.list_name || ''}
+                                            onChange={e => handleAssignList(m.id, e.target.value || null)}
+                                            style={{ fontSize: '0.65rem', padding: '2px 6px', flex: 1, minWidth: 0, background: 'rgba(0,0,0,0.4)', color: '#fff', border: '1px solid rgba(255,255,255,0.2)', borderRadius: 4 }}
+                                        >
+                                            <option value="">📋 Liste yok</option>
+                                            {lists.map(l => <option key={l} value={l}>{l}</option>)}
+                                        </select>
                                     </div>
                                 </div>
                             </div>

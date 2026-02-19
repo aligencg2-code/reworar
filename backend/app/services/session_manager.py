@@ -47,9 +47,8 @@ class SessionManager:
                 pass
 
         # Proxy: hesapta yoksa havuzdan ata
-        proxy = account.proxy_url
-        if proxy and not proxy.lower().startswith(("http://", "https://", "socks4://", "socks5://")):
-            proxy = None
+        from app.services.proxy_pool import normalize_proxy
+        proxy = normalize_proxy(account.proxy_url)
 
         if not proxy:
             proxy = proxy_pool.get_next()
@@ -79,6 +78,14 @@ class SessionManager:
                 account.session_valid = True
                 account.last_login_at = datetime.utcnow()
                 account.instagram_id = result.get("user_id", account.instagram_id or "")
+
+                # User-Agent kalıcılığı — ilk login'de UA kaydet, sonra hep aynı kalacak
+                if not account.user_agent:
+                    ua = result.get("settings", {}).get("user_agent", "")
+                    if ua:
+                        account.user_agent = ua
+                        logger.info(f"  📱 @{account.username} UA kaydedildi")
+
                 db.commit()
 
                 return {
@@ -265,7 +272,8 @@ class SessionManager:
         for account in accounts:
             try:
                 cookies = json.loads(decrypt_token(account.session_cookies))
-                client = InstagramWebClient(proxy=account.proxy_url)
+                from app.services.proxy_pool import normalize_proxy
+                client = InstagramWebClient(proxy=normalize_proxy(account.proxy_url))
                 is_valid = await client.login_with_cookies(cookies)
 
                 account.session_valid = is_valid

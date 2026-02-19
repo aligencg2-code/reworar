@@ -29,6 +29,7 @@ class Media(Base):
         Enum(MediaFileType), default=MediaFileType.PHOTO
     )
     folder: Mapped[str] = mapped_column(String(255), default="default")
+    list_name: Mapped[str | None] = mapped_column(String(255), nullable=True)  # Medya grubu/listesi
     mime_type: Mapped[str] = mapped_column(String(100), nullable=False)
 
     width: Mapped[int | None] = mapped_column(Integer, nullable=True)

@@ -33,6 +33,7 @@ def init_db():
     Base.metadata.create_all(bind=engine)
     _migrate_accounts_table()
     _migrate_locations_table()
+    _migrate_media_table()
 
 
 def _migrate_accounts_table():
@@ -60,6 +61,7 @@ def _migrate_accounts_table():
         ("last_login_at", "DATETIME"),
         ("two_factor_seed", "VARCHAR(100)"),
         ("login_method", "VARCHAR(50) DEFAULT 'password'"),
+        ("posts_per_session", "INTEGER DEFAULT 1"),
     ]
 
     with engine.begin() as conn:
@@ -84,4 +86,21 @@ def _migrate_locations_table():
         with engine.begin() as conn:
             conn.execute(text(
                 "ALTER TABLE locations ADD COLUMN list_name VARCHAR(200) DEFAULT 'Genel' NOT NULL"
+            ))
+
+
+def _migrate_media_table():
+    """media_files tablosuna list_name sütununu ekler."""
+    from sqlalchemy import text, inspect
+    insp = inspect(engine)
+
+    if "media_files" not in insp.get_table_names():
+        return
+
+    existing_cols = {c["name"] for c in insp.get_columns("media_files")}
+
+    if "list_name" not in existing_cols:
+        with engine.begin() as conn:
+            conn.execute(text(
+                "ALTER TABLE media_files ADD COLUMN list_name VARCHAR(255)"
             ))

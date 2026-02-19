@@ -89,6 +89,12 @@ class Account(Base):
     # Proxy
     proxy_url: Mapped[str | None] = mapped_column(String(500), nullable=True)
 
+    # Per-account izolasyon — her hesap kendi içerik kaynaklarını kullanır
+    user_agent: Mapped[str | None] = mapped_column(String(500), nullable=True)  # Kalıcı UA
+    selected_hashtag_group_id: Mapped[int | None] = mapped_column(Integer, nullable=True)  # Atanmış hashtag grubu
+    selected_location_list: Mapped[str | None] = mapped_column(String(255), nullable=True)  # Atanmış konum listesi
+    selected_media_list: Mapped[str | None] = mapped_column(String(255), nullable=True)  # Atanmış medya listesi/klasörü
+
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
     updated_at: Mapped[datetime] = mapped_column(
         DateTime, default=datetime.utcnow, onupdate=datetime.utcnow

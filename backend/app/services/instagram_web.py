@@ -108,28 +108,30 @@ class InstagramWebClient:
             logger.error(f"  ❌ @{username} login hatası: {e}")
             return {"success": False, "message": str(e)[:200]}
 
-    def _retry_without_proxy(
+    def _retry_with_same_proxy(
         self, username, password, email_addr, email_password, two_factor_seed,
         challenge_code_handler, _apply_challenge_monkeypatch, _attempt_login,
     ) -> dict:
-        """Proxy başarısız olduğunda proxy'siz tekrar dener."""
+        """Aynı proxy ile tekrar dener — IP ASLA değişmez."""
         from instagrapi import Client
         from instagrapi.exceptions import BadPassword
 
-        logger.info(f"  🔄 @{username} PROXY'SİZ tekrar deneniyor...")
+        logger.info(f"  🔄 @{username} AYNI PROXY ile tekrar deneniyor... (proxy={self.proxy or 'YOK'})")
 
-        cl_noproxy = Client()
-        cl_noproxy.set_locale("tr_TR")
-        cl_noproxy.set_timezone_offset(3 * 3600)
-        cl_noproxy.delay_range = [1, 3]
-        # NO PROXY
+        cl_retry = Client()
+        cl_retry.set_locale("tr_TR")
+        cl_retry.set_timezone_offset(3 * 3600)
+        cl_retry.delay_range = [1, 3]
+        # AYNI PROXY'yi kullan — IP değişmemeli
+        if self.proxy:
+            cl_retry.set_proxy(self.proxy)
 
-        cl_noproxy.challenge_code_handler = challenge_code_handler
-        cl_noproxy.change_password_handler = lambda u: None
-        _apply_challenge_monkeypatch(cl_noproxy)
+        cl_retry.challenge_code_handler = challenge_code_handler
+        cl_retry.change_password_handler = lambda u: None
+        _apply_challenge_monkeypatch(cl_retry)
 
         if two_factor_seed:
-            cl_noproxy.totp_seed = two_factor_seed
+            cl_retry.totp_seed = two_factor_seed
 
         try:
             verification_code = ""
@@ -138,31 +140,31 @@ class InstagramWebClient:
                     verification_code = self._generate_totp(two_factor_seed)
                 except Exception:
                     pass
-            cl_noproxy.login(username, password, verification_code=verification_code)
-            self._save_session(cl_noproxy, username)
-            logger.info(f"  ✅ @{username} PROXY'SİZ giriş başarılı!")
-            return self._build_success(cl_noproxy, username)
+            cl_retry.login(username, password, verification_code=verification_code)
+            self._save_session(cl_retry, username)
+            logger.info(f"  ✅ @{username} retry giriş başarılı!")
+            return self._build_success(cl_retry, username)
         except ChallengeCodeNeeded:
-            logger.info(f"  📧 @{username} proxy'siz challenge — kod bekleniyor")
+            logger.info(f"  📧 @{username} retry challenge — kod bekleniyor")
             account_id = getattr(self, '_account_id', None)
             if account_id:
-                api_path = getattr(cl_noproxy, '_saved_challenge_url', '') or ''
+                api_path = getattr(cl_retry, '_saved_challenge_url', '') or ''
                 _challenge_store[account_id] = {
-                    "client": cl_noproxy, "username": username, "password": password,
+                    "client": cl_retry, "username": username, "password": password,
                     "email_addr": email_addr, "timestamp": time.time(),
-                    "type": "native", "api_path": api_path,
+                    "type": "native", "api_path": api_path, "proxy": self.proxy,
                 }
-                logger.info(f"  💾 Proxy'siz challenge state kaydedildi (api_path={api_path})")
+                logger.info(f"  💾 Retry challenge state kaydedildi (api_path={api_path})")
             masked_email = email_addr[:3] + "***" + email_addr[email_addr.index("@"):] if email_addr and "@" in email_addr else "kayıtlı email"
             return {
                 "success": False, "checkpoint": True, "needs_code": True,
                 "message": f"Instagram {masked_email} adresine doğrulama kodu gönderdi. Lütfen emailinizi kontrol edip kodu girin.",
             }
         except BadPassword:
-            logger.error(f"  ❌ @{username} proxy'siz de BadPassword — şifre hatalı")
+            logger.error(f"  ❌ @{username} şifre kesinlikle hatalı")
             return {"success": False, "message": "Şifre hatalı — şifreyi kontrol edin"}
         except Exception as e2:
-            logger.error(f"  ❌ @{username} proxy'siz de hata: {e2}")
+            logger.error(f"  ❌ @{username} retry hatası: {e2}")
             return {"success": False, "message": f"Giriş hatası: {str(e2)[:150]}"}
 
     def _login_sync(
@@ -262,7 +264,7 @@ class InstagramWebClient:
                     _challenge_store[account_id] = {
                         "client": cl, "username": username, "password": password,
                         "email_addr": email_addr, "timestamp": time.time(),
-                        "type": "native", "api_path": api_path,
+                        "type": "native", "api_path": api_path, "proxy": self.proxy,
                     }
                     logger.info(f"  💾 Session challenge state kaydedildi (api_path={api_path})")
                 masked_email = email_addr[:3] + "***" + email_addr[email_addr.index("@"):] if email_addr and "@" in email_addr else "kayıtlı email"
@@ -361,18 +363,16 @@ class InstagramWebClient:
             logger.warning(f"  🔒 @{username} BadPassword: {error_msg[:200]}")
             
             # Instagram IP bloğunu BadPassword olarak döner
-            # FARKLI PROXY ile yeni client ile tekrar dene
-            from app.services.proxy_pool import proxy_pool as _pp
-            retry_proxy = _pp.get_random()
-            logger.info(f"  🔄 @{username} FARKLI PROXY ile tekrar deneniyor... ({retry_proxy})")
+            # AYNI PROXY ile tekrar dene — IP ASLA değişmemeli
+            logger.info(f"  🔄 @{username} AYNI PROXY ile tekrar deneniyor... ({self.proxy})")
             try:
                 from instagrapi import Client as InstaClient
                 cl2 = InstaClient()
                 cl2.set_locale("tr_TR")
                 cl2.set_timezone_offset(3 * 3600)
                 cl2.delay_range = [1, 3]
-                if retry_proxy:
-                    cl2.set_proxy(retry_proxy)
+                if self.proxy:
+                    cl2.set_proxy(self.proxy)
                 cl2.challenge_code_handler = challenge_code_handler
                 cl2.change_password_handler = lambda u: None
                 
@@ -387,10 +387,9 @@ class InstagramWebClient:
                 
                 cl2.login(username, password, verification_code=verification_code, relogin=True)
                 self._save_session(cl2, username)
-                logger.info(f"  ✅ @{username} proxy'siz giriş başarılı!")
+                logger.info(f"  ✅ @{username} aynı proxy ile giriş başarılı!")
                 return self._build_success(cl2, username)
             except ChallengeCodeNeeded:
-                # Retry de challenge istedi — kullanıcıdan kod iste
                 logger.info(f"  📧 @{username} retry challenge — kullanıcıdan kod bekleniyor")
                 account_id = getattr(self, '_account_id', None)
                 if account_id:
@@ -403,6 +402,7 @@ class InstagramWebClient:
                         "timestamp": time.time(),
                         "type": "native",
                         "api_path": api_path,
+                        "proxy": self.proxy,
                     }
                     logger.info(f"  💾 Retry challenge state kaydedildi (api_path={api_path})")
                 masked_email = email_addr[:3] + "***" + email_addr[email_addr.index("@"):] if email_addr and "@" in email_addr else "kayıtlı email"
@@ -414,7 +414,7 @@ class InstagramWebClient:
                 logger.error(f"  ❌ @{username} şifre kesinlikle hatalı")
                 return {"success": False, "message": "Şifre hatalı — lütfen şifreyi kontrol edin"}
             except Exception as ce:
-                logger.error(f"  ❌ Proxy'siz retry hatası: {ce}")
+                logger.error(f"  ❌ Retry hatası: {ce}")
                 return {"success": False, "checkpoint": True, "needs_code": True, "message": f"Doğrulama gerekiyor: {str(ce)[:120]}"}
 
         except TwoFactorRequired:
@@ -464,6 +464,7 @@ class InstagramWebClient:
                     "type": "native",
                     "api_path": api_path,
                     "step_name": step_name,
+                    "proxy": self.proxy,
                 }
                 logger.info(f"  💾 Challenge state kaydedildi (account_id={account_id}, api_path={api_path})")
 
@@ -498,6 +499,7 @@ class InstagramWebClient:
                                 "timestamp": time.time(),
                                 "type": "native",
                                 "api_path": api_path,
+                                "proxy": self.proxy,
                             }
                         masked_email = email_addr[:3] + "***" + email_addr[email_addr.index("@"):] if email_addr else "kayıtlı email"
                         return {
@@ -521,6 +523,7 @@ class InstagramWebClient:
                         "email_addr": email_addr,
                         "timestamp": time.time(),
                         "type": "native",
+                        "proxy": self.proxy,
                     }
                 masked_email = email_addr[:3] + "***" + email_addr[email_addr.index("@"):] if email_addr else "kayıtlı email"
                 return {
@@ -553,32 +556,17 @@ class InstagramWebClient:
                 }
 
         except RecaptchaChallengeForm:
-            logger.warning(f"  ⚠️ @{username} reCAPTCHA — proxy'siz denenecek")
-            # Proxy ile reCAPTCHA — proxy'siz dene
-            if self.proxy:
-                return self._retry_without_proxy(
-                    username, password, email_addr, email_password, two_factor_seed,
-                    challenge_code_handler, _apply_challenge_monkeypatch, _attempt_login,
-                )
-            return {"success": False, "message": "reCAPTCHA gerekli — farklı proxy deneyin"}
+            logger.warning(f"  ⚠️ @{username} reCAPTCHA — proxy sorunu")
+            # IP değiştirmeden hata döndür
+            return {"success": False, "message": "reCAPTCHA gerekli — proxy'yi kontrol edin veya değiştirin"}
 
         except ProxyAddressIsBlocked:
-            logger.warning(f"  ⚠️ @{username} proxy engellenmiş — proxy'siz denenecek")
-            if self.proxy:
-                return self._retry_without_proxy(
-                    username, password, email_addr, email_password, two_factor_seed,
-                    challenge_code_handler, _apply_challenge_monkeypatch, _attempt_login,
-                )
-            return {"success": False, "message": "Proxy IP adresi engellenmiş"}
+            logger.warning(f"  ⚠️ @{username} proxy engellenmiş")
+            return {"success": False, "message": "Proxy IP adresi engellenmiş — farklı proxy gerekiyor"}
 
         except SentryBlock:
-            logger.warning(f"  ⚠️ @{username} Sentry Block — proxy'siz denenecek")
-            if self.proxy:
-                return self._retry_without_proxy(
-                    username, password, email_addr, email_password, two_factor_seed,
-                    challenge_code_handler, _apply_challenge_monkeypatch, _attempt_login,
-                )
-            return {"success": False, "message": "Instagram IP'yi engellemiş"}
+            logger.warning(f"  ⚠️ @{username} Sentry Block")
+            return {"success": False, "message": "Instagram bu IP'yi engellemiş — proxy değiştirilmeli"}
 
         except BadCredentials:
             logger.error(f"  ❌ @{username} kimlik bilgileri hatalı")
@@ -599,17 +587,14 @@ class InstagramWebClient:
             error_msg = str(e)[:200]
             logger.error(f"  ❌ @{username} beklenmeyen hata: {error_msg}")
 
-            # Proxy ile bağlantı hatası — proxy'siz dene
+            # Proxy bağlantı hatası — IP değiştirmeden hata döndür
             is_connection_error = any(k in error_msg.lower() for k in [
                 "connectionpool", "max retries", "connection refused",
                 "timeout", "proxyerror", "502", "500 error", "503",
             ])
             if self.proxy and is_connection_error:
-                logger.info(f"  🔄 @{username} proxy hatası — proxy'siz tekrar denenecek")
-                return self._retry_without_proxy(
-                    username, password, email_addr, email_password, two_factor_seed,
-                    challenge_code_handler, _apply_challenge_monkeypatch, _attempt_login,
-                )
+                logger.error(f"  ⚠️ @{username} proxy bağlantı hatası — IP koruması için proxy'siz denenmeyecek")
+                return {"success": False, "message": f"Proxy bağlantı hatası — proxy'yi kontrol edin: {error_msg[:100]}"}
 
             # Yaygın hata mesajlarını Türkçe'ye çevir
             if "bad_password" in error_msg.lower():
@@ -704,6 +689,7 @@ class InstagramWebClient:
                 "bloks_version": bloks_version,
                 "username": username,
                 "timestamp": time.time(),
+                "proxy": self.proxy,
             }
             logger.info(f"  💾 Challenge context saklandı (account_id={account_id})")
 
@@ -782,8 +768,10 @@ class InstagramWebClient:
         cl = entry["client"]
         username = entry["username"]
         challenge_type = entry.get("type", "bloks")
+        stored_proxy = entry.get("proxy")  # Login sırasında kullanılan proxy
 
-        client = InstagramWebClient()
+        # Challenge'ı AYNI PROXY ile çöz — IP değişmemeli
+        client = InstagramWebClient(proxy=stored_proxy)
 
         if challenge_type == "native":
             # instagrapi native challenge — doğrudan security_code gönder

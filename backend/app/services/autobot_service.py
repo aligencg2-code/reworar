@@ -2,15 +2,16 @@
 """
 Müşteri "Botu Başlat" butonuna bastığında:
 1. Tüm aktif hesapları sırayla dolaşır
-2. Medya havuzundan sıradaki medyayı seçer
-3. Caption + hashtag + konum ekler
+2. Her hesap için warmup simülasyonu yapar (doğal gezinme)
+3. Hesabın kendi medya/caption/hashtag/konum kaynaklarından seçer
 4. instagrapi ile Instagram'a paylaşır
-5. Güvenli aralıklarla bir sonraki hesaba geçer
+5. Hesaplar arası 90-180s, hesap içi 25-60s rastgele bekleme
 6. "Botu Durdur" butonuna basılana kadar döngüde kalır
 """
 
 import asyncio
 import random
+import time as _time
 from datetime import datetime, timedelta
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
@@ -30,9 +31,11 @@ SESSIONS_DIR = _app_settings.SESSIONS_DIR
 _bot_executor = ThreadPoolExecutor(max_workers=1, thread_name_prefix="autobot")
 
 # ─── Güvenli Aralık Sabitleri ──────────────────────────
-MIN_DELAY_BETWEEN_ACCOUNTS = 25 * 60   # 25 dakika (saniye)
-MAX_DELAY_BETWEEN_ACCOUNTS = 45 * 60   # 45 dakika
-MIN_SAME_ACCOUNT_COOLDOWN = 3 * 3600   # 3 saat
+MIN_DELAY_BETWEEN_ACCOUNTS = 90         # 90 saniye (hesaplar arası)
+MAX_DELAY_BETWEEN_ACCOUNTS = 180        # 180 saniye
+MIN_INTRA_ACCOUNT_DELAY = 25            # 25 saniye (aynı hesap aksiyonları arası)
+MAX_INTRA_ACCOUNT_DELAY = 60            # 60 saniye
+MIN_SAME_ACCOUNT_COOLDOWN = 3 * 3600    # 3 saat (aynı hesaptan tekrar paylaşım)
 NIGHT_START_HOUR = 1    # Gece 01:00
 NIGHT_END_HOUR = 6      # Sabah 06:00
 
@@ -117,7 +120,7 @@ class AutoBotService:
 
                     self._add_log("info", f"📋 {len(accounts)} aktif hesap bulundu, sırayla paylaşım başlıyor...")
 
-                    for account in accounts:
+                    for i, account in enumerate(accounts):
                         if not self._running:
                             break
 
@@ -144,17 +147,16 @@ class AutoBotService:
                                 self._posts_made += 1
                                 self._last_publish[account.id] = datetime.utcnow()
 
-                            # Aynı hesaptan birden fazla paylaşım arasında kısa bekleme
+                            # Aynı hesaptan birden fazla paylaşım arasında intra-delay
                             if post_idx < session_count - 1 and self._running:
-                                mini_delay = random.randint(60, 120)
-                                self._add_log("info", f"⏳ @{account.username} sıradaki paylaşım için {mini_delay}s bekleniyor ({post_idx+1}/{session_count})")
-                                await self._safe_sleep(mini_delay)
+                                intra_delay = random.randint(MIN_INTRA_ACCOUNT_DELAY, MAX_INTRA_ACCOUNT_DELAY)
+                                self._add_log("info", f"⏳ @{account.username} sıradaki aksiyon için {intra_delay}s bekleniyor ({post_idx+1}/{session_count})")
+                                await self._safe_sleep(intra_delay)
 
-                        # Bir sonraki hesaba geçmeden önce bekle
-                        if self._running:
+                        # Bir sonraki hesaba geçmeden önce inter-account delay
+                        if self._running and i < len(accounts) - 1:
                             delay = random.randint(MIN_DELAY_BETWEEN_ACCOUNTS, MAX_DELAY_BETWEEN_ACCOUNTS)
-                            delay_min = delay // 60
-                            self._add_log("info", f"⏰ Sonraki hesap için {delay_min} dk bekleniyor...")
+                            self._add_log("info", f"⏰ Sonraki hesap için {delay}s bekleniyor...")
                             await self._safe_sleep(delay)
 
                 finally:
@@ -227,16 +229,22 @@ class AutoBotService:
         try:
             import instagrapi
             from app.utils.encryption import decrypt_token
+            from app.services.proxy_pool import normalize_proxy
 
             cl = instagrapi.Client()
             cl.delay_range = [1, 3]
 
-            # Proxy
-            if account.proxy_url:
+            # Proxy — format dönüşümü ile
+            proxy = normalize_proxy(account.proxy_url)
+            if proxy:
                 try:
-                    cl.set_proxy(account.proxy_url)
+                    cl.set_proxy(proxy)
                 except Exception:
                     pass
+
+            # User-Agent — hesaba kalıcı UA ata
+            if account.user_agent:
+                cl.set_user_agent(account.user_agent)
 
             # Session yükle
             password = ""
@@ -261,11 +269,13 @@ class AutoBotService:
             if not logged_in and password:
                 try:
                     cl = instagrapi.Client()
-                    if account.proxy_url:
+                    if proxy:
                         try:
-                            cl.set_proxy(account.proxy_url)
+                            cl.set_proxy(proxy)
                         except Exception:
                             pass
+                    if account.user_agent:
+                        cl.set_user_agent(account.user_agent)
                     cl.login(account.username, password)
                     logged_in = True
                     try:
@@ -277,6 +287,10 @@ class AutoBotService:
 
             if not logged_in:
                 return {"success": False, "error": "Hesaba giriş yapılamadı"}
+
+            # ─── Warmup Simülasyonu ─────────────────────────
+            # Paylaşım öncesi doğal davranış simülasyonu (2-4 dk)
+            self._warmup_simulation(cl, account.username)
 
             # Konum varsa ara
             location = None
@@ -317,23 +331,135 @@ class AutoBotService:
         except Exception as e:
             return {"success": False, "error": str(e)[:200]}
 
+    # ─── Warmup Simülasyonu ────────────────────────────────
+
+    def _warmup_simulation(self, cl, username: str):
+        """
+        Paylaşım öncesi doğal davranış simülasyonu (2-4 dk).
+        1) Ana sayfa scroll (60-120s) — timeline feed
+        2) 5-10 rastgele post görüntüle
+        3) 2-4 story görüntüle
+        4) Keşfet sayfası
+        5) Rastgele 1-3 beğeni (20-45s arası)
+        """
+        logger.info(f"[AutoBot] 🔄 @{username} warmup simülasyonu başlıyor...")
+
+        try:
+            # 1) Ana sayfa scroll — timeline feed al
+            logger.info(f"[AutoBot] 📜 @{username} ana sayfa scroll...")
+            try:
+                cl.get_timeline_feed()
+            except Exception:
+                pass
+            _time.sleep(random.uniform(3, 8))
+
+            # 2) 5-10 rastgele post görüntüle (feed'den)
+            viewed_posts = 0
+            try:
+                feed = cl.get_timeline_feed()
+                feed_items = feed.get("feed_items", []) if isinstance(feed, dict) else []
+                media_items = []
+                for item in feed_items[:20]:
+                    media_pk = None
+                    if isinstance(item, dict):
+                        mi = item.get("media_or_ad", item)
+                        media_pk = mi.get("pk") if isinstance(mi, dict) else None
+                    if media_pk:
+                        media_items.append(media_pk)
+
+                target_views = random.randint(5, 10)
+                for pk in media_items[:target_views]:
+                    try:
+                        cl.media_info(pk)
+                        viewed_posts += 1
+                        _time.sleep(random.uniform(2, 6))
+                    except Exception:
+                        pass
+            except Exception:
+                pass
+            logger.info(f"[AutoBot] 👁 @{username} {viewed_posts} post görüntülendi")
+
+            # 3) 2-4 story görüntüle
+            stories_viewed = 0
+            try:
+                following = cl.user_following(cl.user_id, amount=10)
+                if following:
+                    user_ids = list(following.keys())[:random.randint(2, 4)]
+                    for uid in user_ids:
+                        try:
+                            stories = cl.user_stories(uid)
+                            if stories:
+                                stories_viewed += 1
+                                _time.sleep(random.uniform(3, 8))  # Story izleme süresi
+                        except Exception:
+                            pass
+            except Exception:
+                pass
+            logger.info(f"[AutoBot] 📖 @{username} {stories_viewed} story görüntülendi")
+
+            # 4) Keşfet sayfası — kısa gezinme
+            try:
+                cl.explore_page()
+                _time.sleep(random.uniform(5, 15))
+            except Exception:
+                pass
+            logger.info(f"[AutoBot] 🔍 @{username} keşfet sayfası gezildi")
+
+            # 5) Rastgele 0-3 beğeni (20-45s arası — opsiyonel)
+            likes = 0
+            try:
+                should_like = random.random() < 0.6  # %60 olasılıkla beğeni yap
+                if should_like and media_items:
+                    like_count = random.randint(1, 3)
+                    for pk in random.sample(media_items, min(like_count, len(media_items))):
+                        try:
+                            cl.media_like(pk)
+                            likes += 1
+                            _time.sleep(random.uniform(20, 45))
+                        except Exception:
+                            pass
+            except Exception:
+                pass
+            if likes:
+                logger.info(f"[AutoBot] ❤️ @{username} {likes} post beğenildi")
+
+            total_time = random.uniform(5, 15)  # Son bekleme
+            _time.sleep(total_time)
+            logger.info(f"[AutoBot] ✅ @{username} warmup tamamlandı")
+
+        except Exception as e:
+            logger.warning(f"[AutoBot] ⚠️ @{username} warmup hatası (devam ediliyor): {e}")
+
     # ─── Yardımcı Fonksiyonlar ─────────────────────────────
 
     def _pick_next_media(self, db: Session, account: Account) -> Media | None:
-        """Medya havuzundan sıradaki medyayı seçer."""
-        # Hesaba bağlı veya genel medyaları al
+        """Medya havuzundan sıradaki medyayı seçer — hesap bazlı izolasyon."""
         query = db.query(Media).filter(
             Media.media_type.in_([MediaFileType.PHOTO, MediaFileType.VIDEO]),
         )
 
-        # Hesaba özel medyalar varsa onları öncelikle al
-        account_media = query.filter(Media.account_id == account.id).all()
+        account_media = []
+
+        # 1) Hesaba atanmış medya listesi varsa onu kullan
+        if account.selected_media_list:
+            account_media = query.filter(Media.list_name == account.selected_media_list).all()
+
+        # 2) Yoksa hesaba direkt bağlı medyaları al
         if not account_media:
-            # Genel medya havuzu (hesaba bağlı olmayan)
+            account_media = query.filter(Media.account_id == account.id).all()
+
+        # 3) O da yoksa genel havuz (hesaba bağlı olmayan)
+        if not account_media:
             account_media = query.filter(Media.account_id == None).all()
 
         if not account_media:
             return None
+
+        # Posting moduna göre seç
+        posting_mode = getattr(account, 'posting_mode', 'sequential') or 'sequential'
+
+        if posting_mode == 'random':
+            return random.choice(account_media)
 
         # Sıralı mod
         idx = self._media_index.get(account.id, 0)
@@ -344,26 +470,21 @@ class AutoBotService:
         return account_media[idx]
 
     def _build_caption(self, db: Session, account: Account) -> str:
-        """Caption + hashtag oluşturur."""
+        """Caption + hashtag oluşturur — hesap bazlı izolasyon."""
         from app.models.caption import Caption
         from app.models.settings import SystemSettings
 
         parts = []
 
-        # Sistem ayarlarını oku
+        # 1) Caption seçimi (global — tüm hesaplar için ortak)
         caption_mode = "random"
-        selected_hash_id = None
         try:
             mode_setting = db.query(SystemSettings).filter(SystemSettings.key == "caption_mode").first()
             if mode_setting:
                 caption_mode = mode_setting.value
-            hash_setting = db.query(SystemSettings).filter(SystemSettings.key == "selected_hashtag_group_id").first()
-            if hash_setting and hash_setting.value:
-                selected_hash_id = int(hash_setting.value)
         except Exception:
             pass
 
-        # 1) Caption seçimi
         captions = db.query(Caption).filter(Caption.is_active == True).all()
         if captions:
             if caption_mode == "sequential":
@@ -374,37 +495,77 @@ class AutoBotService:
             parts.append(caption.text)
             caption.use_count += 1
 
-        # 2) Hashtag grubu seçimi
-        if selected_hash_id:
-            group = db.query(HashtagGroup).filter(HashtagGroup.id == selected_hash_id).first()
-            if group:
-                parts.append(group.get_hashtag_string())
-        else:
+        # 2) Hashtag grubu seçimi — HESAP BAZLI
+        group = None
+
+        # Öncelik 1: Hesaba atanmış hashtag grubu
+        if account.selected_hashtag_group_id:
+            group = db.query(HashtagGroup).filter(
+                HashtagGroup.id == account.selected_hashtag_group_id
+            ).first()
+
+        # Öncelik 2: Hesaba bağlı (account_id) hashtag grupları
+        if not group:
+            account_groups = db.query(HashtagGroup).filter(
+                HashtagGroup.account_id == account.id
+            ).all()
+            if account_groups:
+                group = random.choice(account_groups)
+
+        # Öncelik 3: Global sistem ayarı
+        if not group:
+            try:
+                hash_setting = db.query(SystemSettings).filter(
+                    SystemSettings.key == "selected_hashtag_group_id"
+                ).first()
+                if hash_setting and hash_setting.value:
+                    group = db.query(HashtagGroup).filter(
+                        HashtagGroup.id == int(hash_setting.value)
+                    ).first()
+            except Exception:
+                pass
+
+        # Öncelik 4: Herhangi bir grup
+        if not group:
             groups = db.query(HashtagGroup).all()
             if groups:
                 group = random.choice(groups)
-                parts.append(group.get_hashtag_string())
+
+        if group:
+            parts.append(group.get_hashtag_string())
 
         return "\n\n".join(parts)
 
     def _get_location(self, db: Session, account: Account) -> str | None:
-        """Hesap veya genel konum bilgisini döner."""
+        """Konum bilgisini döner — hesap bazlı izolasyon."""
         from app.models.location import Location
         from app.models.settings import SystemSettings
+
         try:
-            # Seçili liste filtresi
+            query = db.query(Location).filter(Location.is_active == True)
+
+            # Öncelik 1: Hesaba atanmış konum listesi
+            if account.selected_location_list:
+                locations = query.filter(
+                    Location.list_name == account.selected_location_list
+                ).all()
+                if locations:
+                    return random.choice(locations).name
+
+            # Öncelik 2: Global sistem ayarı
             selected_list = None
-            list_setting = db.query(SystemSettings).filter(SystemSettings.key == "selected_location_list").first()
+            list_setting = db.query(SystemSettings).filter(
+                SystemSettings.key == "selected_location_list"
+            ).first()
             if list_setting and list_setting.value:
                 selected_list = list_setting.value
 
-            query = db.query(Location).filter(Location.is_active == True)
             if selected_list:
                 query = query.filter(Location.list_name == selected_list)
+
             locations = query.all()
             if locations:
-                loc = random.choice(locations)
-                return loc.name
+                return random.choice(locations).name
         except Exception:
             pass
         return None

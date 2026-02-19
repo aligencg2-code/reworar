@@ -65,19 +65,52 @@ class DownloadService:
         cl = Client()
         cl.delay_range = [1, 3]
 
-        # Session cookies varsa yükle
+        # Proxy ayarla
+        if account.proxy_url:
+            proxy = account.proxy_url
+            # host:port:user:pass formatını http:// formatına çevir
+            if not proxy.lower().startswith(("http://", "https://", "socks4://", "socks5://")):
+                parts = proxy.split(":")
+                if len(parts) == 4:
+                    proxy = f"http://{parts[2]}:{parts[3]}@{parts[0]}:{parts[1]}"
+                elif len(parts) == 2:
+                    proxy = f"http://{parts[0]}:{parts[1]}"
+            try:
+                cl.set_proxy(proxy)
+            except Exception as e:
+                logger.warning(f"[Download] Proxy ayarlanamadı: {e}")
+
+        # Yöntem 1: Disk üzerindeki session dosyasını yükle
+        session_file = settings.SESSIONS_DIR / f"{account.username}.json"
+        if session_file.exists():
+            try:
+                cl.load_settings(session_file)
+                cl.login(account.username, decrypt_token(account.password_encrypted) if account.password_encrypted else "")
+                logger.info(f"[Download] @{account.username} session dosyasından giriş yapıldı")
+                return cl, account
+            except Exception as e:
+                logger.warning(f"[Download] Session dosyası ile giriş başarısız: {e}")
+
+        # Yöntem 2: DB'deki session_cookies'den instagrapi settings çıkar
         if account.session_cookies:
             try:
                 cookies_data = decrypt_token(account.session_cookies)
-                settings_dict = json.loads(cookies_data)
-                cl.set_settings(settings_dict)
-                cl.login_by_sessionid(cl.sessionid)
-                logger.info(f"[Download] @{account.username} session ile giriş yapıldı")
-                return cl, account
+                saved_data = json.loads(cookies_data)
+                # session_manager {cookies: {}, settings: {}} formatında kaydeder
+                if isinstance(saved_data, dict) and "settings" in saved_data:
+                    settings_dict = saved_data["settings"]
+                else:
+                    settings_dict = saved_data
+
+                if settings_dict:
+                    cl.set_settings(settings_dict)
+                    cl.login_by_sessionid(cl.sessionid)
+                    logger.info(f"[Download] @{account.username} DB session ile giriş yapıldı")
+                    return cl, account
             except Exception as e:
                 logger.warning(f"[Download] Session yükleme başarısız: {e}")
 
-        # Session yoksa username/password ile giriş
+        # Yöntem 3: username/password ile fresh login
         if account.password_encrypted:
             try:
                 password = decrypt_token(account.password_encrypted)
@@ -243,6 +276,14 @@ class DownloadService:
                                 new_media.height = h
                                 thumb = media_service.create_thumbnail(str(filepath))
                                 new_media.thumbnail_path = thumb
+                            except Exception:
+                                pass
+                        elif ext == ".mp4":
+                            # Video thumbnail oluştur
+                            try:
+                                thumb = media_service.create_video_thumbnail(str(filepath))
+                                if thumb:
+                                    new_media.thumbnail_path = thumb
                             except Exception:
                                 pass
 
