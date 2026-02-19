@@ -26,7 +26,7 @@ const navItems = [
   { key: 'accounts', icon: '👤', label: 'Hesaplar', path: '/accounts' },
   { key: 'appeals', icon: '🛡️', label: 'Hesap Sağlığı', path: '/appeals' },
   { key: 'profiles', icon: '✏️', label: 'Profil Yönetimi', path: '/profiles' },
-  { key: 'posts', icon: '📝', label: 'Gönderiler', path: '/posts' },
+  { key: 'posts', icon: '📝', label: 'Toplu Paylaşım', path: '/posts' },
   { key: 'calendar', icon: '📅', label: 'Takvim', path: '/calendar' },
   { key: 'media', icon: '🖼️', label: 'Medya', path: '/media' },
   { key: 'messages', icon: '✉️', label: 'Mesajlar', path: '/messages' },

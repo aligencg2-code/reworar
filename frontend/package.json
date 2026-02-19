@@ -1,6 +1,6 @@
 {
   "name": "instabot",
-  "version": "1.0.8",
+  "version": "1.0.9",
   "description": "Instabot — Instagram İçerik Planlama ve Mesaj Yönetim Sistemi",
   "main": "electron-main.js",
   "private": true,
