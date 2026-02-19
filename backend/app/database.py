@@ -32,6 +32,7 @@ def init_db():
     import app.models  # noqa: F401 — modelleri yükle
     Base.metadata.create_all(bind=engine)
     _migrate_accounts_table()
+    _migrate_locations_table()
 
 
 def _migrate_accounts_table():
@@ -68,3 +69,19 @@ def _migrate_accounts_table():
                     f"ALTER TABLE accounts ADD COLUMN {col_name} {col_type}"
                 ))
 
+
+def _migrate_locations_table():
+    """Locations tablosuna list_name sütununu ekler."""
+    from sqlalchemy import text, inspect
+    insp = inspect(engine)
+
+    if "locations" not in insp.get_table_names():
+        return
+
+    existing_cols = {c["name"] for c in insp.get_columns("locations")}
+
+    if "list_name" not in existing_cols:
+        with engine.begin() as conn:
+            conn.execute(text(
+                "ALTER TABLE locations ADD COLUMN list_name VARCHAR(200) DEFAULT 'Genel' NOT NULL"
+            ))

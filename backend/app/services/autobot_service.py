@@ -322,12 +322,24 @@ class AutoBotService:
 
     def _build_caption(self, db: Session, account: Account) -> str:
         """Caption + hashtag oluşturur."""
-        # Hesaba bağlı hashtag gruplarından rastgele seç
+        from app.models.caption import Caption
+
+        parts = []
+
+        # 1) Kayıtlı caption'lardan rastgele seç
+        captions = db.query(Caption).filter(Caption.is_active == True).all()
+        if captions:
+            caption = random.choice(captions)
+            parts.append(caption.text)
+            caption.use_count += 1
+
+        # 2) Hashtag gruplarından rastgele seç ve ekle
         groups = db.query(HashtagGroup).all()
         if groups:
             group = random.choice(groups)
-            return group.get_hashtag_string()
-        return ""
+            parts.append(group.get_hashtag_string())
+
+        return "\n\n".join(parts)
 
     def _get_location(self, db: Session, account: Account) -> str | None:
         """Hesap veya genel konum bilgisini döner."""

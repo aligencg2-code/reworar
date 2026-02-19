@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { api } from '@/lib/api';
 
 interface DownloadJob {
@@ -12,15 +12,41 @@ interface DownloadJob {
     errors: string[];
 }
 
+interface AccountInfo {
+    id: number;
+    username: string;
+    is_active: boolean;
+    session_valid: boolean;
+    account_status: string;
+}
+
 export default function DownloadsPage() {
     const [targetUsername, setTargetUsername] = useState('');
     const [mediaFilter, setMediaFilter] = useState('all');
     const [limit, setLimit] = useState(50);
     const [activeJobs, setActiveJobs] = useState<DownloadJob[]>([]);
     const [starting, setStarting] = useState(false);
+    const [accounts, setAccounts] = useState<AccountInfo[]>([]);
+    const [selectedAccountId, setSelectedAccountId] = useState<number | null>(null);
+
+    // Sayfa yüklendiğinde aktif hesapları çek
+    useEffect(() => {
+        api.getAccounts().then((data: AccountInfo[]) => {
+            const activeAccounts = data.filter((a: AccountInfo) => a.is_active);
+            setAccounts(activeAccounts);
+            // İlk session_valid olan hesabı ön-seç, yoksa ilk aktif hesabı
+            const validAccount = activeAccounts.find((a: AccountInfo) => a.session_valid);
+            if (validAccount) {
+                setSelectedAccountId(validAccount.id);
+            } else if (activeAccounts.length > 0) {
+                setSelectedAccountId(activeAccounts[0].id);
+            }
+        }).catch(() => { });
+    }, []);
 
     const handleStart = async () => {
         if (!targetUsername.trim()) return alert('Kullanıcı adı girin');
+        if (!selectedAccountId) return alert('Lütfen bir hesap seçin');
         setStarting(true);
         try {
             const result = await api.startDownload({
@@ -28,6 +54,7 @@ export default function DownloadsPage() {
                 media_type_filter: mediaFilter,
                 limit,
                 mode: 'scrape',
+                account_id: selectedAccountId,
             });
             const jobId = result.job_id;
             pollJob(jobId);
@@ -78,6 +105,29 @@ export default function DownloadsPage() {
                     ⬇️ Yeni İndirme Başlat
                 </h4>
 
+                {/* Hesap Seçimi */}
+                <div className="form-group" style={{ marginBottom: 16 }}>
+                    <label className="form-label">📱 İndirme Hesabı Seçin</label>
+                    {accounts.length === 0 ? (
+                        <div className="info-box" style={{ padding: '10px 14px', fontSize: '0.82rem' }}>
+                            ⚠️ Aktif hesap bulunamadı. Lütfen önce bir Instagram hesabı ekleyin.
+                        </div>
+                    ) : (
+                        <select
+                            className="form-select"
+                            value={selectedAccountId ?? ''}
+                            onChange={(e) => setSelectedAccountId(e.target.value ? parseInt(e.target.value) : null)}
+                        >
+                            <option value="">-- Hesap Seçin --</option>
+                            {accounts.map(acc => (
+                                <option key={acc.id} value={acc.id}>
+                                    @{acc.username} {acc.session_valid ? '🟢' : '🔴'} ({acc.account_status})
+                                </option>
+                            ))}
+                        </select>
+                    )}
+                </div>
+
                 <div className="row-3">
                     <div className="form-group">
                         <label className="form-label">Hedef Kullanıcı Adı</label>
@@ -122,7 +172,7 @@ export default function DownloadsPage() {
                 <button
                     className="btn btn-primary btn-lg"
                     onClick={handleStart}
-                    disabled={starting || !targetUsername.trim()}
+                    disabled={starting || !targetUsername.trim() || !selectedAccountId}
                 >
                     {starting ? '⏳ Başlatılıyor...' : '🚀 İndirmeye Başla'}
                 </button>

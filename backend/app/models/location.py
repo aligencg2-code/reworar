@@ -10,6 +10,7 @@ class Location(Base):
     __tablename__ = "locations"
 
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
+    list_name: Mapped[str] = mapped_column(String(200), default="Genel", nullable=False)
     name: Mapped[str] = mapped_column(String(200), nullable=False)
     city: Mapped[str | None] = mapped_column(String(100), nullable=True)
     instagram_location_pk: Mapped[str | None] = mapped_column(String(100), nullable=True)
@@ -19,4 +20,5 @@ class Location(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
 
     def __repr__(self):
-        return f"<Location {self.name} ({self.city})>"
+        return f"<Location {self.name} ({self.city}) [{self.list_name}]>"
+

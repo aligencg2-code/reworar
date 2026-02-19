@@ -1,9 +1,9 @@
 {
-  "latest_version": "1.0.0",
+  "latest_version": "1.0.5",
   "min_version": "1.0.0",
-  "changelog": "İlk sürüm",
-  "download_url": "",
-  "file_size": 0,
-  "release_date": "2026-02-18",
+  "changelog": "İndirme sayfasına hesap seçimi eklendi - artık hangi aktif hesapla indireceğinizi seçebilirsiniz",
+  "download_url": "updates/update-1.0.5.zip",
+  "file_size": 176870024,
+  "release_date": "2026-02-19",
   "force_update": false
 }

@@ -91,7 +91,7 @@ async def list_media(
     media_type: str | None = None,
     folder: str | None = None,
     account_id: int | None = None,
-    limit: int = 50,
+    limit: int = 200,
     offset: int = 0,
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
@@ -119,11 +119,35 @@ async def list_media(
         count_query = db.query(Media).filter(Media.media_type == mt)
         if account_id:
             count_query = count_query.filter(Media.account_id == account_id)
+        if folder:
+            count_query = count_query.filter(Media.folder == folder)
         counts[mt.value.lower()] = count_query.count()
+
+    # Tüm benzersiz klasör/liste adları
+    all_folders = list(set(
+        m.folder for m in db.query(Media.folder).distinct().all()
+        if m.folder
+    ))
+    all_folders.sort()
+
+    def _build_file_url(media_item):
+        """Dosyanın gerçek disk yolundan URL oluşturur."""
+        if media_item.file_path:
+            try:
+                # file_path'i UPLOAD_DIR'e göre relative yap → URL
+                rel = os.path.relpath(
+                    media_item.file_path, str(settings.UPLOAD_DIR)
+                ).replace("\\", "/")
+                return f"/uploads/{rel}"
+            except ValueError:
+                pass
+        # Fallback: eski yöntem
+        return f"/uploads/{media_item.media_type.value.lower()}s/{media_item.filename}"
 
     return {
         "total": total,
         "counts": counts,
+        "folders": all_folders,
         "items": [
             {
                 "id": m.id,
@@ -136,7 +160,7 @@ async def list_media(
                 "file_size": m.file_size,
                 "thumbnail_url": f"/uploads/thumbnails/{os.path.basename(m.thumbnail_path)}"
                     if m.thumbnail_path else None,
-                "file_url": f"/uploads/{m.media_type.value.lower()}s/{m.filename}",
+                "file_url": _build_file_url(m),
                 "created_at": m.created_at.isoformat(),
             }
             for m in items

@@ -5,6 +5,7 @@ import { api } from '@/lib/api';
 
 interface LocationItem {
     id: number;
+    list_name: string;
     name: string;
     city: string | null;
     instagram_location_pk: string | null;
@@ -16,13 +17,16 @@ interface LocationItem {
 
 export default function LocationsPage() {
     const [locations, setLocations] = useState<LocationItem[]>([]);
-    const [cities, setCities] = useState<string[]>([]);
+    const [lists, setLists] = useState<string[]>([]);
     const [loading, setLoading] = useState(true);
-    const [cityFilter, setCityFilter] = useState('');
+    const [activeList, setActiveList] = useState('');
     const [showAdd, setShowAdd] = useState(false);
     const [showBulk, setShowBulk] = useState(false);
+    const [showNewList, setShowNewList] = useState(false);
+    const [newListName, setNewListName] = useState('');
     const [bulkText, setBulkText] = useState('');
-    const [newLoc, setNewLoc] = useState({ name: '', city: '', instagram_location_pk: '', lat: '', lng: '' });
+    const [bulkListName, setBulkListName] = useState('');
+    const [newLoc, setNewLoc] = useState({ name: '', city: '', list_name: '' });
     const [editId, setEditId] = useState<number | null>(null);
     const [editData, setEditData] = useState<any>({});
     const [toast, setToast] = useState<{ type: string; message: string } | null>(null);
@@ -34,39 +38,69 @@ export default function LocationsPage() {
 
     const loadLocations = useCallback(async () => {
         try {
-            const data = await api.getLocations(cityFilter || undefined);
+            const params: Record<string, string> = {};
+            if (activeList) params.list_name = activeList;
+            const query = Object.keys(params).length
+                ? '?' + new URLSearchParams(params).toString()
+                : '';
+            const data = await api.getLocations(undefined);
             setLocations(data.items || []);
-            setCities(data.cities || []);
+            setLists(data.lists || []);
         } catch (err) { console.error(err); }
         finally { setLoading(false); }
-    }, [cityFilter]);
+    }, []);
 
     useEffect(() => { loadLocations(); }, [loadLocations]);
+
+    // Aktif listeye göre filtrelenmiş konumlar
+    const filteredLocations = activeList
+        ? locations.filter(l => l.list_name === activeList)
+        : locations;
+
+    // Liste bazında gruplanmış konumlar (Tümü görünümü için)
+    const groupedByList = locations.reduce((acc, loc) => {
+        const key = loc.list_name || 'Genel';
+        if (!acc[key]) acc[key] = [];
+        acc[key].push(loc);
+        return acc;
+    }, {} as Record<string, LocationItem[]>);
 
     const handleAdd = async () => {
         if (!newLoc.name.trim()) return;
         try {
+            const listName = newLoc.list_name || activeList || 'Genel';
             await api.createLocation({
+                list_name: listName,
                 name: newLoc.name.trim(),
                 city: newLoc.city.trim() || null,
-                instagram_location_pk: newLoc.instagram_location_pk.trim() || null,
-                lat: newLoc.lat.trim() || null,
-                lng: newLoc.lng.trim() || null,
             });
-            setNewLoc({ name: '', city: '', instagram_location_pk: '', lat: '', lng: '' });
+            setNewLoc({ name: '', city: '', list_name: '' });
             setShowAdd(false);
             showToast('success', '✅ Konum eklendi');
             loadLocations();
         } catch (err: any) { showToast('error', err.message); }
     };
 
+    const handleCreateList = async () => {
+        if (!newListName.trim()) return;
+        // Listeyi ilk konum eklendiğinde oluşturuyoruz
+        setActiveList(newListName.trim());
+        setNewListName('');
+        setShowNewList(false);
+        setShowAdd(true);
+        setNewLoc({ name: '', city: '', list_name: newListName.trim() });
+        showToast('success', `📋 "${newListName.trim()}" listesi oluşturuldu — şimdi konum ekleyin`);
+    };
+
     const handleBulkImport = async () => {
         if (!bulkText.trim()) return;
         try {
-            const result = await api.bulkImportLocations(bulkText);
+            const listName = bulkListName || activeList || 'Genel';
+            const result = await api.bulkImportLocations(bulkText, listName);
             setBulkText('');
+            setBulkListName('');
             setShowBulk(false);
-            showToast('success', `✅ ${result.added} konum eklendi`);
+            showToast('success', `✅ ${result.added} konum "${listName}" listesine eklendi`);
             loadLocations();
         } catch (err: any) { showToast('error', err.message); }
     };
@@ -96,6 +130,16 @@ export default function LocationsPage() {
         } catch (err: any) { showToast('error', err.message); }
     };
 
+    const handleDeleteList = async (listName: string) => {
+        if (!confirm(`"${listName}" listesindeki TÜM konumlar silinecek. Emin misiniz?`)) return;
+        try {
+            await api.request<any>(`/locations/list/${encodeURIComponent(listName)}`, { method: 'DELETE' });
+            if (activeList === listName) setActiveList('');
+            showToast('success', `🗑️ "${listName}" listesi silindi`);
+            loadLocations();
+        } catch (err: any) { showToast('error', err.message); }
+    };
+
     if (loading) return <div className="flex-center" style={{ height: '60vh' }}><div className="spinner" /></div>;
 
     return (
@@ -118,29 +162,49 @@ export default function LocationsPage() {
             <div className="page-header">
                 <div>
                     <h2 className="page-header__title">Konum Yönetimi</h2>
-                    <p className="page-header__subtitle">{locations.length} konum · {cities.length} şehir</p>
+                    <p className="page-header__subtitle">{locations.length} konum · {lists.length} liste</p>
                 </div>
                 <div style={{ display: 'flex', gap: 8 }}>
-                    <button className="btn btn-secondary" onClick={() => { setShowBulk(!showBulk); setShowAdd(false); }}>
+                    <button className="btn btn-secondary" onClick={() => { setShowBulk(!showBulk); setShowAdd(false); setShowNewList(false); }}>
                         📋 Toplu Ekle
                     </button>
-                    <button className="btn btn-primary" onClick={() => { setShowAdd(!showAdd); setShowBulk(false); }}>
+                    <button className="btn btn-secondary" onClick={() => { setShowNewList(!showNewList); setShowAdd(false); setShowBulk(false); }}>
+                        📁 Yeni Liste
+                    </button>
+                    <button className="btn btn-primary" onClick={() => { setShowAdd(!showAdd); setShowBulk(false); setShowNewList(false); }}>
                         ➕ Konum Ekle
                     </button>
                 </div>
             </div>
 
-            {/* Şehir Tab Filtresi */}
-            {cities.length > 0 && (
-                <div className="tabs">
-                    <div className={`tab ${cityFilter === '' ? 'active' : ''}`} onClick={() => setCityFilter('')}>
-                        Tümü <span className="tab-count">{locations.length}</span>
+            {/* Liste Tab Filtresi */}
+            <div className="tabs">
+                <div className={`tab ${activeList === '' ? 'active' : ''}`} onClick={() => setActiveList('')}>
+                    Tümü <span className="tab-count">{locations.length}</span>
+                </div>
+                {lists.map(list => (
+                    <div key={list} className={`tab ${activeList === list ? 'active' : ''}`} onClick={() => setActiveList(list)}>
+                        📁 {list}
+                        <span className="tab-count">
+                            {locations.filter(l => l.list_name === list).length}
+                        </span>
                     </div>
-                    {cities.map(city => (
-                        <div key={city} className={`tab ${cityFilter === city ? 'active' : ''}`} onClick={() => setCityFilter(city)}>
-                            📍 {city}
+                ))}
+            </div>
+
+            {/* Yeni Liste Oluştur */}
+            {showNewList && (
+                <div className="card" style={{ marginBottom: 16, padding: 20 }}>
+                    <h3 style={{ marginBottom: 12, fontSize: '0.95rem', fontWeight: 700 }}>📁 Yeni Liste Oluştur</h3>
+                    <div style={{ display: 'flex', gap: 12, alignItems: 'flex-end' }}>
+                        <div className="form-group" style={{ flex: 1 }}>
+                            <label className="form-label">Liste Adı *</label>
+                            <input className="form-input" placeholder="Örn: Kadıköy Konumları" value={newListName}
+                                onChange={e => setNewListName(e.target.value)} />
                         </div>
-                    ))}
+                        <button className="btn btn-secondary" onClick={() => setShowNewList(false)}>İptal</button>
+                        <button className="btn btn-primary" onClick={handleCreateList} disabled={!newListName.trim()}>Oluştur</button>
+                    </div>
                 </div>
             )}
 
@@ -148,7 +212,15 @@ export default function LocationsPage() {
             {showAdd && (
                 <div className="card" style={{ marginBottom: 16, padding: 20 }}>
                     <h3 style={{ marginBottom: 12, fontSize: '0.95rem', fontWeight: 700 }}>📍 Yeni Konum</h3>
-                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 12 }}>
+                        <div className="form-group">
+                            <label className="form-label">Liste *</label>
+                            <select className="form-select" value={newLoc.list_name || activeList || ''}
+                                onChange={e => setNewLoc({ ...newLoc, list_name: e.target.value })}>
+                                <option value="">Genel</option>
+                                {lists.map(l => <option key={l} value={l}>{l}</option>)}
+                            </select>
+                        </div>
                         <div className="form-group">
                             <label className="form-label">Konum Adı *</label>
                             <input className="form-input" placeholder="Örn: Taksim Meydanı" value={newLoc.name}
@@ -158,23 +230,6 @@ export default function LocationsPage() {
                             <label className="form-label">Şehir</label>
                             <input className="form-input" placeholder="Örn: İstanbul" value={newLoc.city}
                                 onChange={e => setNewLoc({ ...newLoc, city: e.target.value })} />
-                        </div>
-                        <div className="form-group">
-                            <label className="form-label">Instagram Location PK</label>
-                            <input className="form-input" placeholder="Instagram konum ID'si" value={newLoc.instagram_location_pk}
-                                onChange={e => setNewLoc({ ...newLoc, instagram_location_pk: e.target.value })} />
-                        </div>
-                        <div className="form-group" style={{ display: 'flex', gap: 8 }}>
-                            <div style={{ flex: 1 }}>
-                                <label className="form-label">Enlem</label>
-                                <input className="form-input" placeholder="41.0082" value={newLoc.lat}
-                                    onChange={e => setNewLoc({ ...newLoc, lat: e.target.value })} />
-                            </div>
-                            <div style={{ flex: 1 }}>
-                                <label className="form-label">Boylam</label>
-                                <input className="form-input" placeholder="28.9784" value={newLoc.lng}
-                                    onChange={e => setNewLoc({ ...newLoc, lng: e.target.value })} />
-                            </div>
                         </div>
                     </div>
                     <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end', marginTop: 12 }}>
@@ -188,6 +243,21 @@ export default function LocationsPage() {
             {showBulk && (
                 <div className="card" style={{ marginBottom: 16, padding: 20 }}>
                     <h3 style={{ marginBottom: 12, fontSize: '0.95rem', fontWeight: 700 }}>📋 Toplu Konum Import</h3>
+                    <div style={{ display: 'flex', gap: 12, marginBottom: 12 }}>
+                        <div className="form-group" style={{ minWidth: 200 }}>
+                            <label className="form-label">Listeye Ekle</label>
+                            <select className="form-select" value={bulkListName || activeList || ''}
+                                onChange={e => setBulkListName(e.target.value)}>
+                                <option value="">Genel</option>
+                                {lists.map(l => <option key={l} value={l}>{l}</option>)}
+                            </select>
+                        </div>
+                        <div className="form-group" style={{ flex: 1 }}>
+                            <label className="form-label">veya Yeni Liste Adı</label>
+                            <input className="form-input" placeholder="Yeni liste adı yazın..." value={bulkListName}
+                                onChange={e => setBulkListName(e.target.value)} />
+                        </div>
+                    </div>
                     <div className="info-box blue" style={{ marginBottom: 12 }}>
                         Her satır: <code style={{ background: 'rgba(255,255,255,0.1)', padding: '2px 6px', borderRadius: 4 }}>
                             konum_adı|şehir
@@ -212,84 +282,138 @@ export default function LocationsPage() {
             )}
 
             {/* Konum Listesi */}
-            {locations.length === 0 ? (
+            {filteredLocations.length === 0 ? (
                 <div className="empty-state">
                     <div className="empty-state__icon">📍</div>
-                    <div className="empty-state__title">Henüz konum eklenmemiş</div>
+                    <div className="empty-state__title">
+                        {activeList ? `"${activeList}" listesinde konum yok` : 'Henüz konum eklenmemiş'}
+                    </div>
                     <p style={{ color: 'var(--text-secondary)', maxWidth: 400, margin: '8px auto' }}>
                         Paylaşımlara konum eklemek için konum listesi oluşturun.
                     </p>
                 </div>
+            ) : activeList ? (
+                /* Tek liste görünümü */
+                <div>
+                    <div className="flex-between" style={{ marginBottom: 12 }}>
+                        <h3 style={{ fontSize: '1rem', fontWeight: 700 }}>📁 {activeList}</h3>
+                        <button className="btn btn-danger btn-sm" onClick={() => handleDeleteList(activeList)}>
+                            🗑️ Listeyi Sil
+                        </button>
+                    </div>
+                    {renderLocationTable(filteredLocations)}
+                </div>
             ) : (
-                <div className="table-container">
-                    <table>
-                        <thead>
-                            <tr>
-                                <th>Konum</th>
-                                <th>Şehir</th>
-                                <th>Instagram PK</th>
-                                <th>Koordinat</th>
-                                <th>Durum</th>
-                                <th>İşlemler</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {locations.map(loc => (
-                                <tr key={loc.id} style={{ opacity: loc.is_active ? 1 : 0.5 }}>
-                                    <td>
-                                        {editId === loc.id ? (
-                                            <input className="form-input" value={editData.name || ''} style={{ padding: '4px 8px', fontSize: '0.82rem' }}
-                                                onChange={e => setEditData({ ...editData, name: e.target.value })} />
-                                        ) : (
-                                            <span style={{ fontWeight: 600 }}>📍 {loc.name}</span>
-                                        )}
-                                    </td>
-                                    <td>
-                                        {editId === loc.id ? (
-                                            <input className="form-input" value={editData.city || ''} style={{ padding: '4px 8px', fontSize: '0.82rem', width: 100 }}
-                                                onChange={e => setEditData({ ...editData, city: e.target.value })} />
-                                        ) : (
-                                            <span style={{ fontSize: '0.82rem' }}>{loc.city || '—'}</span>
-                                        )}
-                                    </td>
-                                    <td style={{ fontSize: '0.75rem', color: 'var(--text-muted)', fontFamily: 'monospace' }}>
-                                        {loc.instagram_location_pk || '—'}
-                                    </td>
-                                    <td style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>
-                                        {loc.lat && loc.lng ? `${loc.lat}, ${loc.lng}` : '—'}
-                                    </td>
-                                    <td>
-                                        <span className={`badge ${loc.is_active ? 'badge-success' : 'badge-error'}`} style={{ fontSize: '0.65rem' }}>
-                                            {loc.is_active ? '✅ Aktif' : '⚫ Pasif'}
-                                        </span>
-                                    </td>
-                                    <td>
-                                        <div style={{ display: 'flex', gap: 4 }}>
-                                            {editId === loc.id ? (
-                                                <>
-                                                    <button className="btn btn-sm btn-primary" onClick={() => handleUpdate(loc.id)}>💾</button>
-                                                    <button className="btn btn-sm btn-secondary" onClick={() => setEditId(null)}>✕</button>
-                                                </>
-                                            ) : (
-                                                <>
-                                                    <button className="btn btn-sm btn-secondary" onClick={() => handleToggle(loc)}>
-                                                        {loc.is_active ? '⚫' : '🟢'}
-                                                    </button>
-                                                    <button className="btn btn-sm btn-secondary" onClick={() => {
-                                                        setEditId(loc.id);
-                                                        setEditData({ name: loc.name, city: loc.city || '' });
-                                                    }}>✏️</button>
-                                                    <button className="btn btn-sm btn-danger" onClick={() => handleDelete(loc.id)}>🗑️</button>
-                                                </>
-                                            )}
-                                        </div>
-                                    </td>
-                                </tr>
-                            ))}
-                        </tbody>
-                    </table>
+                /* Tüm listeler görünümü — gruplu */
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+                    {Object.entries(groupedByList).map(([listName, items]) => (
+                        <div key={listName} className="card" style={{ padding: 16 }}>
+                            <div className="flex-between" style={{ marginBottom: 12 }}>
+                                <h3 style={{ fontSize: '0.95rem', fontWeight: 700, display: 'flex', alignItems: 'center', gap: 8 }}>
+                                    📁 {listName}
+                                    <span className="badge badge-primary" style={{ fontSize: '0.65rem' }}>
+                                        {items.length} konum
+                                    </span>
+                                </h3>
+                                <div style={{ display: 'flex', gap: 6 }}>
+                                    <button className="btn btn-sm btn-secondary" onClick={() => setActiveList(listName)}>
+                                        Görüntüle →
+                                    </button>
+                                    <button className="btn btn-sm btn-danger" onClick={() => handleDeleteList(listName)}>
+                                        🗑️
+                                    </button>
+                                </div>
+                            </div>
+                            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                                {items.slice(0, 10).map(loc => (
+                                    <span key={loc.id} style={{
+                                        padding: '4px 10px', borderRadius: 6,
+                                        background: loc.is_active ? 'rgba(99,102,241,0.15)' : 'rgba(255,255,255,0.05)',
+                                        border: '1px solid rgba(99,102,241,0.2)',
+                                        fontSize: '0.78rem', color: loc.is_active ? 'var(--text-primary)' : 'var(--text-muted)',
+                                    }}>
+                                        📍 {loc.name} {loc.city ? `· ${loc.city}` : ''}
+                                    </span>
+                                ))}
+                                {items.length > 10 && (
+                                    <span style={{
+                                        padding: '4px 10px', borderRadius: 6,
+                                        background: 'rgba(255,255,255,0.05)',
+                                        fontSize: '0.78rem', color: 'var(--text-muted)',
+                                    }}>
+                                        +{items.length - 10} daha...
+                                    </span>
+                                )}
+                            </div>
+                        </div>
+                    ))}
                 </div>
             )}
         </div>
     );
+
+    function renderLocationTable(items: LocationItem[]) {
+        return (
+            <div className="table-container">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Konum</th>
+                            <th>Şehir</th>
+                            <th>Durum</th>
+                            <th>İşlemler</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {items.map(loc => (
+                            <tr key={loc.id} style={{ opacity: loc.is_active ? 1 : 0.5 }}>
+                                <td>
+                                    {editId === loc.id ? (
+                                        <input className="form-input" value={editData.name || ''} style={{ padding: '4px 8px', fontSize: '0.82rem' }}
+                                            onChange={e => setEditData({ ...editData, name: e.target.value })} />
+                                    ) : (
+                                        <span style={{ fontWeight: 600 }}>📍 {loc.name}</span>
+                                    )}
+                                </td>
+                                <td>
+                                    {editId === loc.id ? (
+                                        <input className="form-input" value={editData.city || ''} style={{ padding: '4px 8px', fontSize: '0.82rem', width: 100 }}
+                                            onChange={e => setEditData({ ...editData, city: e.target.value })} />
+                                    ) : (
+                                        <span style={{ fontSize: '0.82rem' }}>{loc.city || '—'}</span>
+                                    )}
+                                </td>
+                                <td>
+                                    <span className={`badge ${loc.is_active ? 'badge-success' : 'badge-error'}`} style={{ fontSize: '0.65rem' }}>
+                                        {loc.is_active ? '✅ Aktif' : '⚫ Pasif'}
+                                    </span>
+                                </td>
+                                <td>
+                                    <div style={{ display: 'flex', gap: 4 }}>
+                                        {editId === loc.id ? (
+                                            <>
+                                                <button className="btn btn-sm btn-primary" onClick={() => handleUpdate(loc.id)}>💾</button>
+                                                <button className="btn btn-sm btn-secondary" onClick={() => setEditId(null)}>✕</button>
+                                            </>
+                                        ) : (
+                                            <>
+                                                <button className="btn btn-sm btn-secondary" onClick={() => handleToggle(loc)}>
+                                                    {loc.is_active ? '⚫' : '🟢'}
+                                                </button>
+                                                <button className="btn btn-sm btn-secondary" onClick={() => {
+                                                    setEditId(loc.id);
+                                                    setEditData({ name: loc.name, city: loc.city || '' });
+                                                }}>✏️</button>
+                                                <button className="btn btn-sm btn-danger" onClick={() => handleDelete(loc.id)}>🗑️</button>
+                                            </>
+                                        )}
+                                    </div>
+                                </td>
+                            </tr>
+                        ))}
+                    </tbody>
+                </table>
+            </div>
+        );
+    }
 }

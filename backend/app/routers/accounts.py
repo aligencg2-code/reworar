@@ -2,14 +2,32 @@
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from pydantic import BaseModel
+from pathlib import Path
+import subprocess, os
 
 from app.database import get_db
 from app.models.account import Account
 from app.routers.auth import get_current_user
 from app.models.user import User
 from app.utils.rate_limiter import rate_limiter
+from app.config import settings, DATA_DIR
 
 router = APIRouter(prefix="/api/accounts", tags=["Hesap Yönetimi"])
+
+# ─── Hesap dosya/klasör yardımcıları ───
+
+ACCOUNT_FILES = {
+    "BioTexts": {"filename": "BioTexts.txt", "description": "Hesaba özel bio yazıları"},
+    "BioLinks": {"filename": "BioLinks.txt", "description": "Hesaba özel bio linkleri"},
+    "Usernames": {"filename": "Usernames.txt", "description": "Hesaba özel kullanıcı adları"},
+}
+
+
+def _get_account_dir(username: str) -> Path:
+    """Hesaba ait klasör yolunu döner, yoksa oluşturur."""
+    account_dir = DATA_DIR / "accounts" / username
+    account_dir.mkdir(parents=True, exist_ok=True)
+    return account_dir
 
 
 class AccountUpdate(BaseModel):
@@ -153,3 +171,175 @@ async def delete_account(
     db.delete(account)
     db.commit()
     return {"message": f"@{account.username} hesabı silindi"}
+
+
+# ─── Hesap Dosya Yönetimi ───
+
+
+class FileContent(BaseModel):
+    content: str
+
+
+@router.get("/{account_id}/files")
+async def list_account_files(
+    account_id: int,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    """Hesaba ait dosyaların durumunu döner."""
+    account = db.query(Account).filter(Account.id == account_id).first()
+    if not account:
+        raise HTTPException(status_code=404, detail="Hesap bulunamadı")
+
+    account_dir = _get_account_dir(account.username)
+    files = []
+    for key, info in ACCOUNT_FILES.items():
+        filepath = account_dir / info["filename"]
+        exists = filepath.exists()
+        line_count = 0
+        if exists:
+            try:
+                line_count = len(
+                    [l for l in filepath.read_text(encoding="utf-8").splitlines() if l.strip()]
+                )
+            except Exception:
+                pass
+        files.append({
+            "key": key,
+            "filename": info["filename"],
+            "description": info["description"],
+            "exists": exists,
+            "line_count": line_count,
+        })
+    return {"files": files, "folder_path": str(account_dir)}
+
+
+@router.get("/{account_id}/files/{file_key}")
+async def get_account_file(
+    account_id: int,
+    file_key: str,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    """Hesap dosyasının içeriğini okur."""
+    if file_key not in ACCOUNT_FILES:
+        raise HTTPException(status_code=400, detail="Geçersiz dosya türü")
+
+    account = db.query(Account).filter(Account.id == account_id).first()
+    if not account:
+        raise HTTPException(status_code=404, detail="Hesap bulunamadı")
+
+    filepath = _get_account_dir(account.username) / ACCOUNT_FILES[file_key]["filename"]
+    if not filepath.exists():
+        return {"content": "", "exists": False}
+
+    content = filepath.read_text(encoding="utf-8")
+    return {"content": content, "exists": True}
+
+
+@router.put("/{account_id}/files/{file_key}")
+async def update_account_file(
+    account_id: int,
+    file_key: str,
+    data: FileContent,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    """Hesap dosyasını günceller / oluşturur."""
+    if file_key not in ACCOUNT_FILES:
+        raise HTTPException(status_code=400, detail="Geçersiz dosya türü")
+
+    account = db.query(Account).filter(Account.id == account_id).first()
+    if not account:
+        raise HTTPException(status_code=404, detail="Hesap bulunamadı")
+
+    filepath = _get_account_dir(account.username) / ACCOUNT_FILES[file_key]["filename"]
+    filepath.write_text(data.content, encoding="utf-8")
+
+    line_count = len([l for l in data.content.splitlines() if l.strip()])
+    return {"message": f"{ACCOUNT_FILES[file_key]['filename']} kaydedildi", "line_count": line_count}
+
+
+@router.post("/{account_id}/open-folder")
+async def open_account_folder(
+    account_id: int,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    """Hesabın klasörünü Windows Explorer'da açar."""
+    account = db.query(Account).filter(Account.id == account_id).first()
+    if not account:
+        raise HTTPException(status_code=404, detail="Hesap bulunamadı")
+
+    account_dir = _get_account_dir(account.username)
+    try:
+        subprocess.Popen(["explorer", str(account_dir)])
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Klasör açılamadı: {e}")
+
+    return {"message": f"Klasör açıldı: {account_dir}", "path": str(account_dir)}
+
+
+@router.get("/{account_id}/media")
+async def list_account_media(
+    account_id: int,
+    media_type: str | None = None,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    """Hesaba ait medya dosyalarını listeler."""
+    from app.models.media import Media, MediaFileType
+
+    account = db.query(Account).filter(Account.id == account_id).first()
+    if not account:
+        raise HTTPException(status_code=404, detail="Hesap bulunamadı")
+
+    query = db.query(Media).filter(
+        (Media.account_id == account_id) | (Media.folder == account.username)
+    )
+    if media_type:
+        try:
+            query = query.filter(Media.media_type == MediaFileType(media_type.upper()))
+        except ValueError:
+            pass
+
+    items = query.order_by(Media.created_at.desc()).limit(200).all()
+
+    # Sayılar
+    counts = {}
+    for mt in MediaFileType:
+        c = db.query(Media).filter(
+            (Media.account_id == account_id) | (Media.folder == account.username),
+            Media.media_type == mt,
+        ).count()
+        counts[mt.value.lower()] = c
+
+    total = sum(counts.values())
+
+    def _url(m):
+        if m.file_path:
+            try:
+                rel = os.path.relpath(m.file_path, str(settings.UPLOAD_DIR)).replace("\\", "/")
+                return f"/uploads/{rel}"
+            except ValueError:
+                pass
+        return f"/uploads/{m.media_type.value.lower()}s/{m.filename}"
+
+    return {
+        "total": total,
+        "counts": counts,
+        "items": [
+            {
+                "id": m.id,
+                "filename": m.filename,
+                "original_filename": m.original_filename,
+                "media_type": m.media_type.value.lower(),
+                "folder": m.folder,
+                "thumbnail_url": f"/uploads/thumbnails/{os.path.basename(m.thumbnail_path)}"
+                    if m.thumbnail_path else None,
+                "file_url": _url(m),
+                "created_at": m.created_at.isoformat(),
+            }
+            for m in items
+        ],
+    }

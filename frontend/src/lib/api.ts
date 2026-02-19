@@ -129,6 +129,31 @@ class ApiService {
     return this.request<any>(`/accounts/${id}`, { method: 'DELETE' });
   }
 
+  // Account Files & Folder
+  async getAccountFiles(id: number) {
+    return this.request<any>(`/accounts/${id}/files`);
+  }
+
+  async getAccountFile(id: number, fileKey: string) {
+    return this.request<any>(`/accounts/${id}/files/${fileKey}`);
+  }
+
+  async updateAccountFile(id: number, fileKey: string, content: string) {
+    return this.request<any>(`/accounts/${id}/files/${fileKey}`, {
+      method: 'PUT',
+      body: JSON.stringify({ content }),
+    });
+  }
+
+  async openAccountFolder(id: number) {
+    return this.request<any>(`/accounts/${id}/open-folder`, { method: 'POST' });
+  }
+
+  async getAccountMedia(id: number, mediaType?: string) {
+    const q = mediaType ? `?media_type=${mediaType}` : '';
+    return this.request<any>(`/accounts/${id}/media${q}`);
+  }
+
   // Posts
   async getPosts(params?: Record<string, any>) {
     const query = params ? '?' + new URLSearchParams(params).toString() : '';
@@ -348,10 +373,10 @@ class ApiService {
     });
   }
 
-  async bulkImportLocations(text: string) {
+  async bulkImportLocations(text: string, listName?: string) {
     return this.request<any>('/locations/bulk-import', {
       method: 'POST',
-      body: JSON.stringify({ locations_text: text }),
+      body: JSON.stringify({ locations_text: text, list_name: listName || 'Genel' }),
     });
   }
 

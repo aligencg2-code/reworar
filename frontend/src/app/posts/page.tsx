@@ -15,7 +15,13 @@ export default function PostsPage() {
     const [newPost, setNewPost] = useState({
         account_id: 0, caption: '', media_type: 'photo',
         scheduled_at: '', status: 'draft', hashtag_group_id: null as number | null,
+        location_name: '' as string,
     });
+
+    // Konum listeleri
+    const [locationLists, setLocationLists] = useState<string[]>([]);
+    const [allLocations, setAllLocations] = useState<any[]>([]);
+    const [selectedLocList, setSelectedLocList] = useState('');
 
     // Medya yükleme state
     const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
@@ -25,8 +31,17 @@ export default function PostsPage() {
     const [dragOver, setDragOver] = useState(false);
     const fileInputRef = useRef<HTMLInputElement>(null);
 
+    // Kütüphaneden seçim state
+    const [mediaSource, setMediaSource] = useState<'upload' | 'library'>('upload');
+    const [libraryMedia, setLibraryMedia] = useState<any[]>([]);
+    const [libraryFolders, setLibraryFolders] = useState<string[]>([]);
+    const [selectedMediaIds, setSelectedMediaIds] = useState<number[]>([]);
+
     // Düzenleme state
     const [editPost, setEditPost] = useState<any>(null);
+
+    // Caption listesi
+    const [captions, setCaptions] = useState<any[]>([]);
 
     useEffect(() => { loadData(); }, [filter]);
 
@@ -36,19 +51,35 @@ export default function PostsPage() {
             if (filter.status) params.status = filter.status;
             if (filter.account_id) params.account_id = filter.account_id;
 
-            const [postsData, accData] = await Promise.all([
+            const [postsData, accData, locData, captionsData] = await Promise.all([
                 api.getPosts(params),
                 api.getAccounts(),
+                api.getLocations(),
+                api.getCaptions(),
             ]);
             setPosts(postsData.posts || []);
             setTotal(postsData.total || 0);
+            setCaptions((captionsData.items || []).filter((c: any) => c.is_active));
             setAccounts(accData || []);
+            setAllLocations(locData.items || []);
+            setLocationLists(locData.lists || []);
+
+            // Medya kütüphanesini yükle
+            const mediaData = await api.getMedia({ limit: '500' });
+            setLibraryMedia(mediaData.items || []);
+            setLibraryFolders(mediaData.folders || []);
+
             if (!newPost.account_id && accData.length > 0) {
                 setNewPost(p => ({ ...p, account_id: accData[0].id }));
             }
         } catch (err) { console.error(err); }
         finally { setLoading(false); }
     };
+
+    // Seçili listeye ait aktif konumlar
+    const filteredLocations = selectedLocList
+        ? allLocations.filter((l: any) => l.list_name === selectedLocList && l.is_active)
+        : allLocations.filter((l: any) => l.is_active);
 
     // Dosya seçme
     const handleFileSelect = (files: FileList | null) => {
@@ -103,10 +134,38 @@ export default function PostsPage() {
         handleFileSelect(e.dataTransfer.files);
     }, []);
 
+    // Hesap adına göre kütüphane medyası filtreleme
+    const getAccountUsername = (accountId: number) => {
+        const acc = accounts.find((a: any) => a.id === accountId);
+        return acc ? acc.username : '';
+    };
+
+    const getLibraryMediaForAccount = () => {
+        const username = getAccountUsername(newPost.account_id);
+        // Hesap adıyla eşleşen klasör varsa kullan, yoksa tüm medyaları göster
+        const accountMedia = libraryMedia.filter((m: any) => m.folder === username);
+        if (accountMedia.length > 0) return accountMedia;
+        // Hesap klasörü yoksa "default" veya "posts" klasöründeki medyaları göster
+        const generalMedia = libraryMedia.filter((m: any) =>
+            m.folder === 'default' || m.folder === 'posts' || !m.folder
+        );
+        return generalMedia.length > 0 ? generalMedia : libraryMedia;
+    };
+
+    const toggleMediaSelection = (id: number) => {
+        setSelectedMediaIds(prev =>
+            prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]
+        );
+    };
+
     // Gönderi oluştur
     const handleCreate = async () => {
-        if (selectedFiles.length === 0) {
+        if (mediaSource === 'upload' && selectedFiles.length === 0) {
             alert('Lütfen en az bir medya dosyası ekleyin!');
+            return;
+        }
+        if (mediaSource === 'library' && selectedMediaIds.length === 0) {
+            alert('Lütfen en az bir medya seçin!');
             return;
         }
 
@@ -114,19 +173,29 @@ export default function PostsPage() {
         setUploadProgress('Dosyalar yükleniyor...');
 
         try {
-            // 1) Medya dosyalarını yükle
-            const uploadResult = await api.uploadMedia(
-                selectedFiles,
-                newPost.media_type,
-                'posts',
-                newPost.account_id || undefined,
-            );
+            let mediaIds: number[] = [];
+
+            if (mediaSource === 'upload') {
+                // 1) Medya dosyalarını yükle
+                const uploadResult = await api.uploadMedia(
+                    selectedFiles,
+                    newPost.media_type,
+                    'posts',
+                    newPost.account_id || undefined,
+                );
+                mediaIds = uploadResult.media_ids || [];
+            } else {
+                // Kütüphaneden seçilen medya ID'lerini kullan
+                mediaIds = selectedMediaIds;
+            }
+
             setUploadProgress('Gönderi oluşturuluyor...');
 
             // 2) Gönderiyi oluştur
             const postData = {
                 ...newPost,
-                media_ids: uploadResult.media_ids || [],
+                media_ids: mediaIds,
+                location_name: newPost.location_name || null,
             };
 
             if (!postData.scheduled_at) {
@@ -142,7 +211,11 @@ export default function PostsPage() {
             setNewPost({
                 account_id: accounts[0]?.id || 0, caption: '', media_type: 'photo',
                 scheduled_at: '', status: 'draft', hashtag_group_id: null,
+                location_name: '',
             });
+            setSelectedLocList('');
+            setSelectedMediaIds([]);
+            setMediaSource('upload');
             setUploadProgress('');
             loadData();
         } catch (err: any) {
@@ -350,103 +423,210 @@ export default function PostsPage() {
                             </select>
                         </div>
 
-                        {/* Dosya Yükleme Alanı */}
+                        {/* Medya Kaynağı Seçimi */}
                         <div className="form-group">
                             <label className="form-label">Medya Dosyaları</label>
-                            <div
-                                onDragOver={handleDragOver}
-                                onDragLeave={handleDragLeave}
-                                onDrop={handleDrop}
-                                onClick={() => fileInputRef.current?.click()}
-                                style={{
-                                    border: `2px dashed ${dragOver ? 'var(--color-primary)' : 'var(--border-color)'}`,
-                                    borderRadius: 12,
-                                    padding: selectedFiles.length > 0 ? 12 : 40,
-                                    textAlign: 'center',
-                                    cursor: 'pointer',
-                                    transition: 'all 0.2s',
-                                    background: dragOver ? 'rgba(233, 30, 99, 0.05)' : 'transparent',
-                                    minHeight: 100,
-                                }}
-                            >
-                                <input
-                                    ref={fileInputRef}
-                                    type="file"
-                                    multiple
-                                    accept="image/*,video/*"
-                                    style={{ display: 'none' }}
-                                    onChange={(e) => handleFileSelect(e.target.files)}
-                                />
+                            {/* Tab: Yükle / Kütüphane */}
+                            <div style={{ display: 'flex', gap: 0, marginBottom: 12 }}>
+                                <button
+                                    type="button"
+                                    onClick={() => setMediaSource('upload')}
+                                    style={{
+                                        flex: 1, padding: '8px 12px', fontSize: '0.82rem', fontWeight: 500,
+                                        border: '1px solid var(--border-color)',
+                                        borderRadius: '8px 0 0 8px', cursor: 'pointer',
+                                        background: mediaSource === 'upload' ? 'var(--color-primary)' : 'var(--surface-color)',
+                                        color: mediaSource === 'upload' ? '#fff' : 'var(--text-secondary)',
+                                    }}
+                                >📤 Dosya Yükle</button>
+                                <button
+                                    type="button"
+                                    onClick={() => setMediaSource('library')}
+                                    style={{
+                                        flex: 1, padding: '8px 12px', fontSize: '0.82rem', fontWeight: 500,
+                                        border: '1px solid var(--border-color)', borderLeft: 'none',
+                                        borderRadius: '0 8px 8px 0', cursor: 'pointer',
+                                        background: mediaSource === 'library' ? 'var(--color-primary)' : 'var(--surface-color)',
+                                        color: mediaSource === 'library' ? '#fff' : 'var(--text-secondary)',
+                                    }}
+                                >📚 Kütüphaneden Seç</button>
+                            </div>
 
-                                {selectedFiles.length === 0 ? (
-                                    <div>
-                                        <div style={{ fontSize: 36, marginBottom: 8 }}>📁</div>
-                                        <div style={{ color: 'var(--text-secondary)', fontSize: '0.9rem' }}>
-                                            Dosyaları sürükleyip bırakın
-                                        </div>
-                                        <div style={{ color: 'var(--text-muted)', fontSize: '0.8rem', marginTop: 4 }}>
-                                            veya tıklayarak seçin
-                                        </div>
-                                    </div>
-                                ) : (
-                                    <div style={{
-                                        display: 'grid',
-                                        gridTemplateColumns: 'repeat(auto-fill, minmax(80px, 1fr))',
-                                        gap: 8,
-                                    }}>
-                                        {selectedFiles.map((file, i) => (
-                                            <div key={i} style={{
-                                                position: 'relative',
-                                                borderRadius: 8,
-                                                overflow: 'hidden',
-                                                background: 'var(--surface-color)',
-                                                aspectRatio: '1',
-                                            }}>
-                                                {filePreviews[i] && filePreviews[i] !== '🎬' && filePreviews[i] !== '📁' ? (
-                                                    <img
-                                                        src={filePreviews[i]}
-                                                        alt={file.name}
-                                                        style={{ width: '100%', height: '100%', objectFit: 'cover' }}
-                                                    />
-                                                ) : (
-                                                    <div style={{
-                                                        display: 'flex', alignItems: 'center', justifyContent: 'center',
-                                                        height: '100%', fontSize: 28,
-                                                    }}>
-                                                        {filePreviews[i] || '📁'}
-                                                    </div>
-                                                )}
-                                                <button
-                                                    onClick={(e) => { e.stopPropagation(); removeFile(i); }}
-                                                    style={{
-                                                        position: 'absolute', top: 2, right: 2,
-                                                        background: 'rgba(0,0,0,0.7)', color: '#fff',
-                                                        border: 'none', borderRadius: '50%',
-                                                        width: 20, height: 20, fontSize: 10,
-                                                        cursor: 'pointer', display: 'flex',
-                                                        alignItems: 'center', justifyContent: 'center',
-                                                    }}
-                                                >✕</button>
-                                                <div style={{
-                                                    position: 'absolute', bottom: 0, left: 0, right: 0,
-                                                    background: 'rgba(0,0,0,0.6)', color: '#fff',
-                                                    fontSize: '0.6rem', padding: '2px 4px',
-                                                    overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
-                                                }}>
-                                                    {file.name}
+                            {mediaSource === 'upload' ? (
+                                <>
+                                    <div
+                                        onDragOver={handleDragOver}
+                                        onDragLeave={handleDragLeave}
+                                        onDrop={handleDrop}
+                                        onClick={() => fileInputRef.current?.click()}
+                                        style={{
+                                            border: `2px dashed ${dragOver ? 'var(--color-primary)' : 'var(--border-color)'}`,
+                                            borderRadius: 12,
+                                            padding: selectedFiles.length > 0 ? 12 : 40,
+                                            textAlign: 'center',
+                                            cursor: 'pointer',
+                                            transition: 'all 0.2s',
+                                            background: dragOver ? 'rgba(233, 30, 99, 0.05)' : 'transparent',
+                                            minHeight: 100,
+                                        }}
+                                    >
+                                        <input
+                                            ref={fileInputRef}
+                                            type="file"
+                                            multiple
+                                            accept="image/*,video/*"
+                                            style={{ display: 'none' }}
+                                            onChange={(e) => handleFileSelect(e.target.files)}
+                                        />
+                                        {selectedFiles.length === 0 ? (
+                                            <div>
+                                                <div style={{ fontSize: 36, marginBottom: 8 }}>📁</div>
+                                                <div style={{ color: 'var(--text-secondary)', fontSize: '0.9rem' }}>
+                                                    Dosyaları sürükleyip bırakın
+                                                </div>
+                                                <div style={{ color: 'var(--text-muted)', fontSize: '0.8rem', marginTop: 4 }}>
+                                                    veya tıklayarak seçin
                                                 </div>
                                             </div>
-                                        ))}
+                                        ) : (
+                                            <div style={{
+                                                display: 'grid',
+                                                gridTemplateColumns: 'repeat(auto-fill, minmax(80px, 1fr))',
+                                                gap: 8,
+                                            }}>
+                                                {selectedFiles.map((file, i) => (
+                                                    <div key={i} style={{
+                                                        position: 'relative', borderRadius: 8, overflow: 'hidden',
+                                                        background: 'var(--surface-color)', aspectRatio: '1',
+                                                    }}>
+                                                        {filePreviews[i] && filePreviews[i] !== '🎬' && filePreviews[i] !== '📁' ? (
+                                                            <img src={filePreviews[i]} alt={file.name}
+                                                                style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                                                        ) : (
+                                                            <div style={{
+                                                                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                                                height: '100%', fontSize: 28,
+                                                            }}>{filePreviews[i] || '📁'}</div>
+                                                        )}
+                                                        <button
+                                                            onClick={(e) => { e.stopPropagation(); removeFile(i); }}
+                                                            style={{
+                                                                position: 'absolute', top: 2, right: 2,
+                                                                background: 'rgba(0,0,0,0.7)', color: '#fff',
+                                                                border: 'none', borderRadius: '50%',
+                                                                width: 20, height: 20, fontSize: 10,
+                                                                cursor: 'pointer', display: 'flex',
+                                                                alignItems: 'center', justifyContent: 'center',
+                                                            }}
+                                                        >✕</button>
+                                                        <div style={{
+                                                            position: 'absolute', bottom: 0, left: 0, right: 0,
+                                                            background: 'rgba(0,0,0,0.6)', color: '#fff',
+                                                            fontSize: '0.6rem', padding: '2px 4px',
+                                                            overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+                                                        }}>{file.name}</div>
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        )}
                                     </div>
-                                )}
-                            </div>
-                            <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: 4 }}>
-                                {selectedFiles.length > 0 && `${selectedFiles.length} dosya seçildi`}
-                            </div>
+                                    <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: 4 }}>
+                                        {selectedFiles.length > 0 && `${selectedFiles.length} dosya seçildi`}
+                                    </div>
+                                </>
+                            ) : (
+                                /* Kütüphaneden Seç */
+                                <div>
+                                    <div style={{
+                                        fontSize: '0.78rem', color: 'var(--text-secondary)', marginBottom: 8,
+                                        padding: '6px 10px', borderRadius: 6, background: 'rgba(233,30,99,0.08)',
+                                    }}>
+                                        📂 {(() => {
+                                            const username = getAccountUsername(newPost.account_id);
+                                            const hasFolder = libraryMedia.some((m: any) => m.folder === username);
+                                            return hasFolder
+                                                ? `@${username} klasöründen medyalar gösteriliyor`
+                                                : 'Genel klasördeki medyalar gösteriliyor';
+                                        })()}
+                                    </div>
+                                    <div style={{
+                                        maxHeight: 280, overflowY: 'auto', border: '1px solid var(--border-color)',
+                                        borderRadius: 10, padding: 8,
+                                    }}>
+                                        {getLibraryMediaForAccount().length === 0 ? (
+                                            <div style={{ textAlign: 'center', padding: 30, color: 'var(--text-muted)', fontSize: '0.85rem' }}>
+                                                Henüz medya yok. Önce medya indirin veya yükleyin.
+                                            </div>
+                                        ) : (
+                                            <div style={{
+                                                display: 'grid',
+                                                gridTemplateColumns: 'repeat(auto-fill, minmax(72px, 1fr))',
+                                                gap: 6,
+                                            }}>
+                                                {getLibraryMediaForAccount().map((m: any) => {
+                                                    const isSelected = selectedMediaIds.includes(m.id);
+                                                    const imgUrl = m.thumbnail_url || m.file_url;
+                                                    return (
+                                                        <div
+                                                            key={m.id}
+                                                            onClick={() => toggleMediaSelection(m.id)}
+                                                            style={{
+                                                                position: 'relative', borderRadius: 8, overflow: 'hidden',
+                                                                aspectRatio: '1', cursor: 'pointer',
+                                                                border: isSelected ? '2px solid var(--color-primary)' : '2px solid transparent',
+                                                                opacity: isSelected ? 1 : 0.7,
+                                                                transition: 'all 0.15s',
+                                                            }}
+                                                        >
+                                                            <img
+                                                                src={imgUrl}
+                                                                alt={m.filename}
+                                                                style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                                                                loading="lazy"
+                                                            />
+                                                            {isSelected && (
+                                                                <div style={{
+                                                                    position: 'absolute', top: 4, right: 4,
+                                                                    width: 20, height: 20, borderRadius: '50%',
+                                                                    background: 'var(--color-primary)', color: '#fff',
+                                                                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                                                    fontSize: 11, fontWeight: 700,
+                                                                }}>✓</div>
+                                                            )}
+                                                        </div>
+                                                    );
+                                                })}
+                                            </div>
+                                        )}
+                                    </div>
+                                    <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: 4 }}>
+                                        {selectedMediaIds.length > 0 && `${selectedMediaIds.length} medya seçildi`}
+                                    </div>
+                                </div>
+                            )}
                         </div>
 
                         <div className="form-group">
                             <label className="form-label">Açıklama</label>
+                            {captions.length > 0 && (
+                                <select
+                                    className="form-select"
+                                    value=""
+                                    onChange={(e) => {
+                                        if (e.target.value) {
+                                            setNewPost(p => ({ ...p, caption: e.target.value }));
+                                        }
+                                    }}
+                                    style={{ marginBottom: 8, fontSize: '0.82rem' }}
+                                >
+                                    <option value="">📝 Kayıtlı Yazılardan Seç ({captions.length})</option>
+                                    {captions.map((c: any) => (
+                                        <option key={c.id} value={c.text}>
+                                            {c.text.length > 80 ? c.text.substring(0, 80) + '...' : c.text}
+                                        </option>
+                                    ))}
+                                </select>
+                            )}
                             <textarea
                                 className="form-input"
                                 rows={4}
@@ -457,6 +637,47 @@ export default function PostsPage() {
                             <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', textAlign: 'right' }}>
                                 {(newPost.caption || '').length}/2200
                             </div>
+                        </div>
+
+                        {/* Konum Seçimi */}
+                        <div className="form-group">
+                            <label className="form-label">📍 Konum Listesi</label>
+                            <div style={{ display: 'flex', gap: 8 }}>
+                                <select
+                                    className="form-select"
+                                    value={selectedLocList}
+                                    onChange={(e) => {
+                                        setSelectedLocList(e.target.value);
+                                        setNewPost(p => ({ ...p, location_name: '' }));
+                                    }}
+                                    style={{ flex: 1 }}
+                                >
+                                    <option value="">Konum seçme</option>
+                                    {locationLists.map(l => (
+                                        <option key={l} value={l}>📁 {l} ({allLocations.filter((loc: any) => loc.list_name === l && loc.is_active).length})</option>
+                                    ))}
+                                </select>
+                                {selectedLocList && (
+                                    <select
+                                        className="form-select"
+                                        value={newPost.location_name}
+                                        onChange={(e) => setNewPost({ ...newPost, location_name: e.target.value })}
+                                        style={{ flex: 1 }}
+                                    >
+                                        <option value="">Konum seçin...</option>
+                                        {filteredLocations.map((loc: any) => (
+                                            <option key={loc.id} value={loc.name}>
+                                                📍 {loc.name} {loc.city ? `(${loc.city})` : ''}
+                                            </option>
+                                        ))}
+                                    </select>
+                                )}
+                            </div>
+                            {newPost.location_name && (
+                                <div style={{ fontSize: '0.75rem', color: 'var(--color-primary)', marginTop: 4 }}>
+                                    📍 Seçilen: {newPost.location_name}
+                                </div>
+                            )}
                         </div>
 
                         <div className="form-group">
@@ -498,7 +719,7 @@ export default function PostsPage() {
                             <button
                                 className="btn btn-primary"
                                 onClick={handleCreate}
-                                disabled={uploading || selectedFiles.length === 0}
+                                disabled={uploading || (selectedFiles.length === 0 && selectedMediaIds.length === 0)}
                             >
                                 {uploading ? '⏳ Yükleniyor...' :
                                     newPost.status === 'scheduled' ? '📅 Planla' : '💾 Taslak Kaydet'}

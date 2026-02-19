@@ -36,4 +36,5 @@ __pycache__/
 # Generated
 backend/generated_key.txt
 update-server/updates/*.zip
+backend/updates/
 license.key

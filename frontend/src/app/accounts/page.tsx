@@ -38,6 +38,17 @@ export default function AccountsPage() {
     const [challengeMessage, setChallengeMessage] = useState('');
     const [submittingCode, setSubmittingCode] = useState(false);
 
+    // --- Hesap Ayarları Modal ---
+    const [settingsAccount, setSettingsAccount] = useState<AccountInfo | null>(null);
+    const [accountFiles, setAccountFiles] = useState<any[]>([]);
+    const [editingFile, setEditingFile] = useState<string | null>(null);
+    const [fileContent, setFileContent] = useState('');
+    const [savingFile, setSavingFile] = useState(false);
+    const [accountMedia, setAccountMedia] = useState<any[]>([]);
+    const [accountMediaCounts, setAccountMediaCounts] = useState<Record<string, number>>({});
+    const [accountMediaFilter, setAccountMediaFilter] = useState('');
+    const [settingsLoading, setSettingsLoading] = useState(false);
+
     const showToast = (type: string, message: string) => {
         setToast({ type, message });
         setTimeout(() => setToast(null), 6000);
@@ -171,6 +182,105 @@ export default function AccountsPage() {
             showToast('success', '✅ Hesap güncellendi');
             loadAccounts();
         } catch (err: any) { showToast('error', err.message); }
+    };
+
+    // ─── Hesap Ayarları Fonksiyonları ───
+
+    const getMediaUrl = (url: string | null) => {
+        if (!url) return '';
+        if (url.startsWith('http')) return url;
+        if (typeof window !== 'undefined' && (window as any).electronAPI) {
+            return `http://127.0.0.1:45678${url}`;
+        }
+        return url;
+    };
+
+    const openSettings = async (acc: AccountInfo) => {
+        setSettingsAccount(acc);
+        setEditingFile(null);
+        setAccountMediaFilter('');
+        setSettingsLoading(true);
+        try {
+            const [filesData, mediaData] = await Promise.all([
+                api.getAccountFiles(acc.id),
+                api.getAccountMedia(acc.id),
+            ]);
+            setAccountFiles(filesData.files || []);
+            setAccountMedia(mediaData.items || []);
+            setAccountMediaCounts(mediaData.counts || {});
+        } catch (err: any) {
+            showToast('error', `Ayarlar yüklenemedi: ${err.message}`);
+        } finally {
+            setSettingsLoading(false);
+        }
+    };
+
+    const refreshSettings = async () => {
+        if (!settingsAccount) return;
+        setSettingsLoading(true);
+        try {
+            const [filesData, mediaData] = await Promise.all([
+                api.getAccountFiles(settingsAccount.id),
+                api.getAccountMedia(settingsAccount.id, accountMediaFilter || undefined),
+            ]);
+            setAccountFiles(filesData.files || []);
+            setAccountMedia(mediaData.items || []);
+            setAccountMediaCounts(mediaData.counts || {});
+            showToast('success', '🔄 Yenilendi');
+        } catch (err: any) {
+            showToast('error', err.message);
+        } finally {
+            setSettingsLoading(false);
+        }
+    };
+
+    const openFolder = async () => {
+        if (!settingsAccount) return;
+        try {
+            await api.openAccountFolder(settingsAccount.id);
+            showToast('success', '📁 Klasör açıldı');
+        } catch (err: any) {
+            showToast('error', err.message);
+        }
+    };
+
+    const openFileEditor = async (fileKey: string) => {
+        if (!settingsAccount) return;
+        try {
+            const data = await api.getAccountFile(settingsAccount.id, fileKey);
+            setFileContent(data.content || '');
+            setEditingFile(fileKey);
+        } catch (err: any) {
+            showToast('error', err.message);
+        }
+    };
+
+    const saveFile = async () => {
+        if (!settingsAccount || !editingFile) return;
+        setSavingFile(true);
+        try {
+            await api.updateAccountFile(settingsAccount.id, editingFile, fileContent);
+            showToast('success', '💾 Dosya kaydedildi');
+            setEditingFile(null);
+            // Dosya listesini yenile
+            const filesData = await api.getAccountFiles(settingsAccount.id);
+            setAccountFiles(filesData.files || []);
+        } catch (err: any) {
+            showToast('error', err.message);
+        } finally {
+            setSavingFile(false);
+        }
+    };
+
+    const filterAccountMedia = async (type: string) => {
+        if (!settingsAccount) return;
+        setAccountMediaFilter(type);
+        try {
+            const mediaData = await api.getAccountMedia(settingsAccount.id, type || undefined);
+            setAccountMedia(mediaData.items || []);
+        } catch (err: any) {
+            showToast('error', err.message);
+        }
     };
 
     // İstatistikler
@@ -451,6 +561,9 @@ export default function AccountsPage() {
                                     </td>
                                     <td>
                                         <div style={{ display: 'flex', gap: 4 }}>
+                                            <button className="btn btn-sm btn-secondary" onClick={() => openSettings(acc)} title="Ayarlar">
+                                                ⚙️
+                                            </button>
                                             <button className="btn btn-sm btn-secondary" onClick={() => handleSingleLogin(acc.id)} title="Giriş Yap">
                                                 🔑
                                             </button>
@@ -463,6 +576,190 @@ export default function AccountsPage() {
                             ))}
                         </tbody>
                     </table>
+                </div>
+            )}
+
+            {/* ─── Hesap Ayarları Modal ─── */}
+            {settingsAccount && (
+                <div className="modal-overlay" onClick={() => { setSettingsAccount(null); setEditingFile(null); }}>
+                    <div className="modal" onClick={e => e.stopPropagation()} style={{ maxWidth: 720, maxHeight: '90vh', overflow: 'auto' }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+                            <div>
+                                <h3 className="modal-title" style={{ margin: 0 }}>@{settingsAccount.username} - Ayarlar</h3>
+                                <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginTop: 2 }}>Config/</div>
+                            </div>
+                            <div style={{ display: 'flex', gap: 8 }}>
+                                <button className="btn btn-sm btn-secondary" onClick={openFolder} title="Klasörü Aç">
+                                    📁 Klasörü Aç
+                                </button>
+                                <button className="btn btn-sm btn-secondary" onClick={refreshSettings} title="Yenile">
+                                    🔄 Yenile
+                                </button>
+                                <button
+                                    onClick={() => { setSettingsAccount(null); setEditingFile(null); }}
+                                    style={{
+                                        background: 'rgba(255,255,255,0.08)', border: '1px solid rgba(255,255,255,0.15)',
+                                        borderRadius: '50%', width: 32, height: 32, color: '#fff', fontSize: '1rem',
+                                        cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                    }}
+                                >✕</button>
+                            </div>
+                        </div>
+
+                        {settingsLoading ? (
+                            <div className="flex-center" style={{ padding: 40 }}><div className="spinner" /></div>
+                        ) : (
+                            <>
+                                {/* Hesap Dosyaları */}
+                                <div style={{
+                                    border: '1px solid var(--border-color)', borderRadius: 12,
+                                    padding: 16, marginBottom: 16,
+                                }}>
+                                    <h4 style={{ margin: '0 0 12px', fontSize: '0.9rem', fontWeight: 700 }}>📄 Hesap Dosyaları</h4>
+
+                                    {editingFile ? (
+                                        /* Dosya Düzenleme */
+                                        <div>
+                                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+                                                <span style={{ fontWeight: 600, fontSize: '0.85rem' }}>
+                                                    {accountFiles.find((f: any) => f.key === editingFile)?.filename || editingFile}
+                                                </span>
+                                                <div style={{ display: 'flex', gap: 6 }}>
+                                                    <button className="btn btn-sm btn-secondary" onClick={() => setEditingFile(null)}>İptal</button>
+                                                    <button className="btn btn-sm btn-primary" onClick={saveFile} disabled={savingFile}>
+                                                        {savingFile ? '⏳ Kaydediliyor...' : '💾 Kaydet'}
+                                                    </button>
+                                                </div>
+                                            </div>
+                                            <textarea
+                                                value={fileContent}
+                                                onChange={e => setFileContent(e.target.value)}
+                                                rows={10}
+                                                style={{
+                                                    width: '100%', padding: '10px 12px', fontFamily: 'monospace',
+                                                    fontSize: '0.8rem', background: 'rgba(255,255,255,0.03)',
+                                                    border: '1px solid var(--border-color)', borderRadius: 8,
+                                                    color: 'var(--text-primary)', resize: 'vertical', outline: 'none',
+                                                    boxSizing: 'border-box',
+                                                }}
+                                                placeholder={`Her satıra bir girdi yazın...`}
+                                            />
+                                            <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)', marginTop: 4 }}>
+                                                {fileContent.split('\n').filter(l => l.trim()).length} satır
+                                            </div>
+                                        </div>
+                                    ) : (
+                                        /* Dosya Kartları */
+                                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 10 }}>
+                                            {accountFiles.map((f: any) => (
+                                                <div key={f.key} style={{
+                                                    border: '1px solid var(--border-color)', borderRadius: 10,
+                                                    padding: '14px 12px', textAlign: 'center',
+                                                }}>
+                                                    <div style={{ fontSize: 28, marginBottom: 6 }}>
+                                                        {f.key === 'BioTexts' ? '📝' : f.key === 'BioLinks' ? '🔗' : '👤'}
+                                                    </div>
+                                                    <div style={{ fontWeight: 600, fontSize: '0.82rem' }}>{f.filename}</div>
+                                                    <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)', margin: '4px 0 8px' }}>
+                                                        {f.description}
+                                                    </div>
+                                                    {f.exists ? (
+                                                        <div style={{ fontSize: '0.72rem', color: '#2ecc71', marginBottom: 6 }}>
+                                                            ✅ {f.line_count} satır
+                                                        </div>
+                                                    ) : (
+                                                        <div style={{ fontSize: '0.72rem', color: '#e74c3c', marginBottom: 6 }}>
+                                                            Dosya bulunamadı
+                                                        </div>
+                                                    )}
+                                                    <button
+                                                        className="btn btn-sm btn-primary"
+                                                        onClick={() => openFileEditor(f.key)}
+                                                        style={{ fontSize: '0.72rem', width: '100%' }}
+                                                    >
+                                                        {f.exists ? '✏️ Düzenle' : '+ Oluştur'}
+                                                    </button>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    )}
+                                </div>
+
+                                {/* Hesap Medyaları */}
+                                <div style={{
+                                    border: '1px solid var(--border-color)', borderRadius: 12,
+                                    padding: 16,
+                                }}>
+                                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+                                        <h4 style={{ margin: 0, fontSize: '0.9rem', fontWeight: 700 }}>🖼️ Hesap Medyaları</h4>
+                                        <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>
+                                            📷 {accountMediaCounts.photo || 0}
+                                            {' '}🎬 {accountMediaCounts.video || 0}
+                                            {' '}🎭 {accountMediaCounts.reels || 0}
+                                            {' '}👤 {accountMediaCounts.profile || 0}
+                                        </div>
+                                    </div>
+
+                                    {/* Medya Türü Tabları */}
+                                    <div className="tabs" style={{ marginBottom: 10 }}>
+                                        {[{ key: '', label: '📂 Tümü' }, { key: 'photo', label: '📷 Fotoğraflar' }, { key: 'video', label: '🎬 Videolar' }, { key: 'reels', label: '🎭 Reels' }, { key: 'profile', label: '👤 Profil Fotoğrafları' }].map(t => (
+                                            <div
+                                                key={t.key}
+                                                className={`tab ${accountMediaFilter === t.key ? 'active' : ''}`}
+                                                onClick={() => filterAccountMedia(t.key)}
+                                                style={{ fontSize: '0.75rem', padding: '6px 10px' }}
+                                            >{t.label}</div>
+                                        ))}
+                                    </div>
+
+                                    {/* Medya Grid */}
+                                    {accountMedia.length === 0 ? (
+                                        <div style={{
+                                            textAlign: 'center', padding: '30px 20px',
+                                            border: '2px dashed var(--border-color)', borderRadius: 10,
+                                        }}>
+                                            <div style={{ fontSize: 40, marginBottom: 8 }}>☁️</div>
+                                            <div style={{ fontWeight: 600, fontSize: '0.85rem' }}>Hesaba özel fotoğraf yükle</div>
+                                            <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginTop: 4 }}>
+                                                Bu fotoğraflar sadece bu hesap için kullanılacak
+                                            </div>
+                                            <div style={{ fontSize: '0.65rem', color: 'var(--text-muted)', marginTop: 2 }}>
+                                                Desteklenen formatlar: JPG, PNG, GIF, BMP, WEBP, AVI, JPS, HEIC, HEIF
+                                            </div>
+                                        </div>
+                                    ) : (
+                                        <div style={{
+                                            display: 'grid',
+                                            gridTemplateColumns: 'repeat(auto-fill, minmax(80px, 1fr))',
+                                            gap: 6, maxHeight: 250, overflowY: 'auto',
+                                        }}>
+                                            {accountMedia.map((m: any) => (
+                                                <div key={m.id} style={{
+                                                    borderRadius: 8, overflow: 'hidden', aspectRatio: '1',
+                                                    background: 'var(--surface-color)',
+                                                }}>
+                                                    <img
+                                                        src={getMediaUrl(m.thumbnail_url || m.file_url) || ''}
+                                                        alt={m.filename}
+                                                        style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                                                        loading="lazy"
+                                                    />
+                                                </div>
+                                            ))}
+                                        </div>
+                                    )}
+                                </div>
+
+                                {/* Kapat Butonu */}
+                                <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 16 }}>
+                                    <button
+                                        className="btn btn-primary"
+                                        onClick={() => { setSettingsAccount(null); setEditingFile(null); }}
+                                    >Kapat</button>
+                                </div>
+                            </>
+                        )}
+                    </div>
                 </div>
             )}
         </div>

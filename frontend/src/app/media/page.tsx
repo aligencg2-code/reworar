@@ -25,6 +25,7 @@ interface AccountOption {
 export default function MediaPage() {
     const [media, setMedia] = useState<MediaItem[]>([]);
     const [counts, setCounts] = useState<Record<string, number>>({});
+    const [folders, setFolders] = useState<string[]>([]);
     const [total, setTotal] = useState(0);
     const [loading, setLoading] = useState(true);
     const [filter, setFilter] = useState({ media_type: '', folder: '', account_id: '' });
@@ -58,6 +59,7 @@ export default function MediaPage() {
             const data = await api.getMedia(params);
             setMedia(data.items || []);
             setCounts(data.counts || {});
+            setFolders(data.folders || []);
             setTotal(data.total || 0);
         } catch (err) { console.error(err); }
         finally { setLoading(false); }
@@ -97,13 +99,15 @@ export default function MediaPage() {
         return `${(bytes / 1048576).toFixed(1)} MB`;
     };
 
-    // Medya URL'ini doğru oluştur — proxy üzerinden /api prefix'i ile
+    // Medya URL'ini doğru oluştur
+    // Electron proxy /uploads/* isteklerini doğrudan backend'e yönlendiriyor
+    // /api prefix eklemeye GEREK YOK, aksi halde backend'de 404 alır
     const getMediaUrl = (path: string | null) => {
         if (!path) return null;
-        // Eğer /uploads/ ile başlıyorsa, /api prefix ekle (proxy yönlendirir)
-        if (path.startsWith('/uploads/')) return `/api${path}`;
+        // /uploads/ ile başlıyorsa direkt kullan (Electron proxy yönlendirir)
+        if (path.startsWith('/uploads/')) return path;
         if (path.startsWith('/api/')) return path;
-        return `/api/uploads/${path}`;
+        return `/uploads/${path}`;
     };
 
     if (loading) return <div className="flex-center" style={{ height: '60vh' }}><div className="spinner" /></div>;
@@ -234,6 +238,27 @@ export default function MediaPage() {
                     </div>
                 ))}
             </div>
+
+            {/* Klasör / Liste Filtreleri */}
+            {folders.length > 0 && (
+                <div className="tabs" style={{ marginTop: 8 }}>
+                    <div
+                        className={`tab ${filter.folder === '' ? 'active' : ''}`}
+                        onClick={() => setFilter({ ...filter, folder: '' })}
+                    >
+                        📂 Tüm Klasörler
+                    </div>
+                    {folders.map(f => (
+                        <div
+                            key={f}
+                            className={`tab ${filter.folder === f ? 'active' : ''}`}
+                            onClick={() => setFilter({ ...filter, folder: f })}
+                        >
+                            📁 {f}
+                        </div>
+                    ))}
+                </div>
+            )}
 
             {/* Medya Grid */}
             {media.length === 0 ? (
