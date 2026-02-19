@@ -23,7 +23,7 @@ class Settings(BaseSettings):
 
     # --- Uygulama ---
     APP_NAME: str = "Instabot"
-    APP_VERSION: str = "1.0.5"
+    APP_VERSION: str = "1.0.7"
     APP_DEBUG: bool = True
     SECRET_KEY: str = "change-me-in-production-use-openssl-rand-hex-32"
 
@@ -91,6 +91,6 @@ settings = Settings()
 for directory in [settings.UPLOAD_DIR, settings.BACKUP_DIR, settings.LOG_DIR, settings.SESSIONS_DIR]:
     directory.mkdir(parents=True, exist_ok=True)
 
-for sub in ["photos", "videos", "stories", "reels", "thumbnails"]:
+for sub in ["photos", "videos", "stories", "reels", "thumbnails", "downloads"]:
     (settings.UPLOAD_DIR / sub).mkdir(parents=True, exist_ok=True)
 

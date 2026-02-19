@@ -55,7 +55,7 @@ function getCurrentVersion() {
 
 // ─── Sürüm Karşılaştırma ───────────────────────────────
 function versionToTuple(v) {
-    return v.replace(/^v/, '').split('.').map(Number);
+    return v.replace(/^v\.?/, '').split('.').map(Number);
 }
 
 function isNewerVersion(remote, local) {

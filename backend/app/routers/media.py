@@ -132,17 +132,40 @@ async def list_media(
 
     def _build_file_url(media_item):
         """Dosyanın gerçek disk yolundan URL oluşturur."""
-        if media_item.file_path:
-            try:
-                # file_path'i UPLOAD_DIR'e göre relative yap → URL
-                rel = os.path.relpath(
-                    media_item.file_path, str(settings.UPLOAD_DIR)
-                ).replace("\\", "/")
+        raw = media_item.file_path or ""
+        # Normalize: backslash → forward slash
+        raw = raw.replace("\\", "/")
+
+        # Yol içinde /uploads/ segmenti varsa, ondan sonrasını al
+        idx = raw.find("/uploads/")
+        if idx != -1:
+            return raw[idx:]
+
+        # UPLOAD_DIR'e göre relative yap
+        try:
+            rel = os.path.relpath(
+                media_item.file_path, str(settings.UPLOAD_DIR)
+            ).replace("\\", "/")
+            if not rel.startswith(".."):
                 return f"/uploads/{rel}"
-            except ValueError:
-                pass
-        # Fallback: eski yöntem
+        except (ValueError, TypeError):
+            pass
+
+        # Fallback: klasör + dosya adı
+        if media_item.folder and media_item.folder != "default":
+            return f"/uploads/downloads/{media_item.folder}/{media_item.filename}"
         return f"/uploads/{media_item.media_type.value.lower()}s/{media_item.filename}"
+
+    def _build_thumb_url(media_item):
+        """Thumbnail URL'ini güvenli şekilde oluşturur."""
+        if not media_item.thumbnail_path:
+            return None
+        raw = media_item.thumbnail_path.replace("\\", "/")
+        idx = raw.find("/uploads/")
+        if idx != -1:
+            return raw[idx:]
+        basename = os.path.basename(media_item.thumbnail_path)
+        return f"/uploads/thumbnails/{basename}"
 
     return {
         "total": total,
@@ -158,8 +181,7 @@ async def list_media(
                 "width": m.width,
                 "height": m.height,
                 "file_size": m.file_size,
-                "thumbnail_url": f"/uploads/thumbnails/{os.path.basename(m.thumbnail_path)}"
-                    if m.thumbnail_path else None,
+                "thumbnail_url": _build_thumb_url(m),
                 "file_url": _build_file_url(m),
                 "created_at": m.created_at.isoformat(),
             }
