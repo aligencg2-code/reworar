@@ -62,6 +62,11 @@ def _migrate_accounts_table():
         ("two_factor_seed", "VARCHAR(100)"),
         ("login_method", "VARCHAR(50) DEFAULT 'password'"),
         ("posts_per_session", "INTEGER DEFAULT 1"),
+        # v1.2.3 — hesap bazlı izolasyon
+        ("user_agent", "VARCHAR(500)"),
+        ("selected_hashtag_group_id", "INTEGER"),
+        ("selected_location_list", "VARCHAR(255)"),
+        ("selected_media_list", "VARCHAR(255)"),
     ]
 
     with engine.begin() as conn:
