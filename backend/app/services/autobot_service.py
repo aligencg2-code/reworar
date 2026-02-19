@@ -287,7 +287,20 @@ class AutoBotService:
             if media.media_type == MediaFileType.VIDEO:
                 result = cl.video_upload(file_path, caption=caption, location=location)
             else:
-                result = cl.photo_upload(file_path, caption=caption, location=location)
+                # Fotoğrafı Instagram boyutuna resize et
+                try:
+                    from app.utils.image_resize import resize_for_instagram
+                    import tempfile, shutil
+                    tmp_path = Path(tempfile.mktemp(suffix='.jpg'))
+                    shutil.copy2(file_path, tmp_path)
+                    resize_for_instagram(tmp_path, mode="portrait")
+                    result = cl.photo_upload(tmp_path, caption=caption, location=location)
+                    try:
+                        tmp_path.unlink()
+                    except Exception:
+                        pass
+                except ImportError:
+                    result = cl.photo_upload(file_path, caption=caption, location=location)
 
             return {"success": True, "media_id": str(getattr(result, 'id', ''))}
 

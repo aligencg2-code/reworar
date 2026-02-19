@@ -165,6 +165,23 @@ export default function AccountsPage() {
         finally { setSubmittingCode(false); }
     };
 
+    const handleBrowserLogin = async (id: number) => {
+        try {
+            showToast('success', '🌐 Tarayıcı açılıyor...');
+            const result = await api.request<any>('/accounts/login-browser', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ account_id: id }),
+            });
+            if (result.success) {
+                showToast('success', `✅ @${result.username} tarayıcı ile giriş başarılı`);
+            } else {
+                showToast('error', `❌ ${result.error || result.message}`);
+            }
+            loadAccounts();
+        } catch (err: any) { showToast('error', err.message); }
+    };
+
     const handleDelete = async (id: number, username: string) => {
         if (!confirm(`@${username} hesabını silmek istediğinize emin misiniz?`)) return;
         try {
@@ -564,8 +581,11 @@ export default function AccountsPage() {
                                             <button className="btn btn-sm btn-secondary" onClick={() => openSettings(acc)} title="Ayarlar">
                                                 ⚙️
                                             </button>
-                                            <button className="btn btn-sm btn-secondary" onClick={() => handleSingleLogin(acc.id)} title="Giriş Yap">
+                                            <button className="btn btn-sm btn-secondary" onClick={() => handleSingleLogin(acc.id)} title="API ile Giriş">
                                                 🔑
+                                            </button>
+                                            <button className="btn btn-sm btn-secondary" onClick={() => handleBrowserLogin(acc.id)} title="Tarayıcı ile Giriş" style={{ background: 'rgba(99,102,241,0.15)' }}>
+                                                🌐
                                             </button>
                                             <button className="btn btn-sm btn-danger" onClick={() => handleDelete(acc.id, acc.username)} title="Sil">
                                                 🗑️

@@ -343,3 +343,191 @@ async def list_account_media(
             for m in items
         ],
     }
+
+
+# ─── Tarayıcı ile giriş ───
+
+@router.post("/login-browser")
+async def login_browser(
+    data: dict,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    """Tarayıcı ile Instagram girişi — Playwright penceresi açar."""
+    account_id = data.get("account_id")
+    if not account_id:
+        raise HTTPException(status_code=400, detail="account_id gerekli")
+
+    account = db.query(Account).filter(Account.id == account_id).first()
+    if not account:
+        raise HTTPException(status_code=404, detail="Hesap bulunamadı")
+
+    from app.services.browser_login_service import browser_login
+    result = await browser_login(account.id, account.username, account.proxy_url)
+
+    if result.get("success"):
+        account.session_valid = True
+        db.commit()
+
+    return result
+
+
+# ─── Öne Çıkarılanlar (Highlights) ───
+
+@router.get("/{account_id}/highlights")
+async def list_highlights(
+    account_id: int,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    """Hesabın öne çıkarılan listesini getirir."""
+    account = db.query(Account).filter(Account.id == account_id).first()
+    if not account:
+        raise HTTPException(status_code=404, detail="Hesap bulunamadı")
+
+    try:
+        from instagrapi import Client
+        from app.utils.encryption import decrypt_token
+
+        cl = Client()
+        cl.delay_range = [1, 3]
+        if account.proxy_url:
+            try:
+                cl.set_proxy(account.proxy_url)
+            except Exception:
+                pass
+
+        session_file = settings.SESSIONS_DIR / f"{account.username}.json"
+        if session_file.exists():
+            cl.load_settings(session_file)
+            password = ""
+            if account.password_encrypted:
+                try:
+                    password = decrypt_token(account.password_encrypted)
+                except Exception:
+                    pass
+            if password:
+                cl.login(account.username, password)
+            else:
+                cl.get_timeline_feed()
+        else:
+            raise HTTPException(status_code=400, detail="Önce giriş yapılmalı")
+
+        user_id = cl.user_id
+        highlights = cl.user_highlights(user_id)
+
+        return {
+            "highlights": [
+                {
+                    "pk": str(h.pk),
+                    "title": h.title,
+                    "cover_url": str(h.cover_media.thumbnail_url) if h.cover_media else None,
+                    "items_count": h.media_count or 0,
+                    "created_at": h.created_at.isoformat() if h.created_at else None,
+                }
+                for h in highlights
+            ]
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e)[:200])
+
+
+@router.post("/{account_id}/highlights")
+async def create_highlight(
+    account_id: int,
+    data: dict,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    """Yeni öne çıkarılan oluşturur (story media ID'lerinden)."""
+    account = db.query(Account).filter(Account.id == account_id).first()
+    if not account:
+        raise HTTPException(status_code=404, detail="Hesap bulunamadı")
+
+    title = data.get("title", "Öne Çıkan")
+    story_ids = data.get("story_ids", [])
+
+    if not story_ids:
+        raise HTTPException(status_code=400, detail="En az 1 story gerekli")
+
+    try:
+        from instagrapi import Client
+        from app.utils.encryption import decrypt_token
+
+        cl = Client()
+        cl.delay_range = [1, 3]
+        if account.proxy_url:
+            try:
+                cl.set_proxy(account.proxy_url)
+            except Exception:
+                pass
+
+        session_file = settings.SESSIONS_DIR / f"{account.username}.json"
+        if session_file.exists():
+            cl.load_settings(session_file)
+            password = ""
+            if account.password_encrypted:
+                try:
+                    password = decrypt_token(account.password_encrypted)
+                except Exception:
+                    pass
+            if password:
+                cl.login(account.username, password)
+            else:
+                cl.get_timeline_feed()
+
+        result = cl.highlight_create(title, story_ids)
+        return {
+            "success": True,
+            "highlight_pk": str(result.pk),
+            "message": f"'{title}' öne çıkarılanı oluşturuldu",
+        }
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e)[:200])
+
+
+@router.delete("/{account_id}/highlights/{highlight_pk}")
+async def delete_highlight(
+    account_id: int,
+    highlight_pk: str,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    """Öne çıkarılan siler."""
+    account = db.query(Account).filter(Account.id == account_id).first()
+    if not account:
+        raise HTTPException(status_code=404, detail="Hesap bulunamadı")
+
+    try:
+        from instagrapi import Client
+        from app.utils.encryption import decrypt_token
+
+        cl = Client()
+        cl.delay_range = [1, 3]
+        if account.proxy_url:
+            try:
+                cl.set_proxy(account.proxy_url)
+            except Exception:
+                pass
+
+        session_file = settings.SESSIONS_DIR / f"{account.username}.json"
+        if session_file.exists():
+            cl.load_settings(session_file)
+            password = ""
+            if account.password_encrypted:
+                try:
+                    password = decrypt_token(account.password_encrypted)
+                except Exception:
+                    pass
+            if password:
+                cl.login(account.username, password)
+            else:
+                cl.get_timeline_feed()
+
+        cl.highlight_delete(highlight_pk)
+        return {"success": True, "message": "Öne çıkarılan silindi"}
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e)[:200])
+
