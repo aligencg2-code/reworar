@@ -1,0 +1,352 @@
+2026-02-19 22:28:55,383 INFO sqlalchemy.engine.Engine BEGIN (implicit)
+2026-02-19 22:28:55,384 INFO sqlalchemy.engine.Engine PRAGMA main.table_info("users")
+2026-02-19 22:28:55,385 INFO sqlalchemy.engine.Engine [raw sql] ()
+2026-02-19 22:28:55,386 INFO sqlalchemy.engine.Engine PRAGMA temp.table_info("users")
+2026-02-19 22:28:55,387 INFO sqlalchemy.engine.Engine [raw sql] ()
+2026-02-19 22:28:55,388 INFO sqlalchemy.engine.Engine PRAGMA main.table_info("accounts")
+2026-02-19 22:28:55,389 INFO sqlalchemy.engine.Engine [raw sql] ()
+2026-02-19 22:28:55,390 INFO sqlalchemy.engine.Engine PRAGMA temp.table_info("accounts")
+2026-02-19 22:28:55,390 INFO sqlalchemy.engine.Engine [raw sql] ()
+2026-02-19 22:28:55,390 INFO sqlalchemy.engine.Engine PRAGMA main.table_info("posts")
+2026-02-19 22:28:55,390 INFO sqlalchemy.engine.Engine [raw sql] ()
+2026-02-19 22:28:55,391 INFO sqlalchemy.engine.Engine PRAGMA temp.table_info("posts")
+2026-02-19 22:28:55,391 INFO sqlalchemy.engine.Engine [raw sql] ()
+2026-02-19 22:28:55,391 INFO sqlalchemy.engine.Engine PRAGMA main.table_info("post_media")
+2026-02-19 22:28:55,391 INFO sqlalchemy.engine.Engine [raw sql] ()
+2026-02-19 22:28:55,391 INFO sqlalchemy.engine.Engine PRAGMA temp.table_info("post_media")
+2026-02-19 22:28:55,392 INFO sqlalchemy.engine.Engine [raw sql] ()
+2026-02-19 22:28:55,392 INFO sqlalchemy.engine.Engine PRAGMA main.table_info("media_files")
+2026-02-19 22:28:55,392 INFO sqlalchemy.engine.Engine [raw sql] ()
+2026-02-19 22:28:55,392 INFO sqlalchemy.engine.Engine PRAGMA temp.table_info("media_files")
+2026-02-19 22:28:55,392 INFO sqlalchemy.engine.Engine [raw sql] ()
+2026-02-19 22:28:55,393 INFO sqlalchemy.engine.Engine PRAGMA main.table_info("messages")
+2026-02-19 22:28:55,393 INFO sqlalchemy.engine.Engine [raw sql] ()
+2026-02-19 22:28:55,393 INFO sqlalchemy.engine.Engine PRAGMA temp.table_info("messages")
+2026-02-19 22:28:55,393 INFO sqlalchemy.engine.Engine [raw sql] ()
+2026-02-19 22:28:55,394 INFO sqlalchemy.engine.Engine PRAGMA main.table_info("message_templates")
+2026-02-19 22:28:55,394 INFO sqlalchemy.engine.Engine [raw sql] ()
+2026-02-19 22:28:55,394 INFO sqlalchemy.engine.Engine PRAGMA temp.table_info("message_templates")
+2026-02-19 22:28:55,394 INFO sqlalchemy.engine.Engine [raw sql] ()
+2026-02-19 22:28:55,394 INFO sqlalchemy.engine.Engine PRAGMA main.table_info("auto_reply_rules")
+2026-02-19 22:28:55,395 INFO sqlalchemy.engine.Engine [raw sql] ()
+2026-02-19 22:28:55,395 INFO sqlalchemy.engine.Engine PRAGMA temp.table_info("auto_reply_rules")
+2026-02-19 22:28:55,395 INFO sqlalchemy.engine.Engine [raw sql] ()
+2026-02-19 22:28:55,395 INFO sqlalchemy.engine.Engine PRAGMA main.table_info("hashtag_groups")
+2026-02-19 22:28:55,395 INFO sqlalchemy.engine.Engine [raw sql] ()
+2026-02-19 22:28:55,396 INFO sqlalchemy.engine.Engine PRAGMA temp.table_info("hashtag_groups")
+2026-02-19 22:28:55,396 INFO sqlalchemy.engine.Engine [raw sql] ()
+2026-02-19 22:28:55,396 INFO sqlalchemy.engine.Engine PRAGMA main.table_info("activity_logs")
+2026-02-19 22:28:55,396 INFO sqlalchemy.engine.Engine [raw sql] ()
+2026-02-19 22:28:55,396 INFO sqlalchemy.engine.Engine PRAGMA temp.table_info("activity_logs")
+2026-02-19 22:28:55,397 INFO sqlalchemy.engine.Engine [raw sql] ()
+2026-02-19 22:28:55,397 INFO sqlalchemy.engine.Engine PRAGMA main.table_info("system_settings")
+2026-02-19 22:28:55,397 INFO sqlalchemy.engine.Engine [raw sql] ()
+2026-02-19 22:28:55,397 INFO sqlalchemy.engine.Engine PRAGMA temp.table_info("system_settings")
+2026-02-19 22:28:55,398 INFO sqlalchemy.engine.Engine [raw sql] ()
+2026-02-19 22:28:55,398 INFO sqlalchemy.engine.Engine PRAGMA main.table_info("captions")
+2026-02-19 22:28:55,398 INFO sqlalchemy.engine.Engine [raw sql] ()
+2026-02-19 22:28:55,398 INFO sqlalchemy.engine.Engine PRAGMA temp.table_info("captions")
+2026-02-19 22:28:55,398 INFO sqlalchemy.engine.Engine [raw sql] ()
+2026-02-19 22:28:55,399 INFO sqlalchemy.engine.Engine PRAGMA main.table_info("locations")
+2026-02-19 22:28:55,399 INFO sqlalchemy.engine.Engine [raw sql] ()
+2026-02-19 22:28:55,399 INFO sqlalchemy.engine.Engine PRAGMA temp.table_info("locations")
+2026-02-19 22:28:55,399 INFO sqlalchemy.engine.Engine [raw sql] ()
+2026-02-19 22:28:55,400 INFO sqlalchemy.engine.Engine 
+CREATE TABLE users (
+	id INTEGER NOT NULL, 
+	username VARCHAR(50) NOT NULL, 
+	email VARCHAR(255) NOT NULL, 
+	password_hash VARCHAR(255) NOT NULL, 
+	role VARCHAR(6) NOT NULL, 
+	is_active BOOLEAN NOT NULL, 
+	last_login DATETIME, 
+	created_at DATETIME NOT NULL, 
+	updated_at DATETIME NOT NULL, 
+	PRIMARY KEY (id), 
+	UNIQUE (username), 
+	UNIQUE (email)
+)
+
+
+2026-02-19 22:28:55,400 INFO sqlalchemy.engine.Engine [no key 0.00019s] ()
+2026-02-19 22:28:55,405 INFO sqlalchemy.engine.Engine 
+CREATE TABLE accounts (
+	id INTEGER NOT NULL, 
+	instagram_id VARCHAR(50), 
+	username VARCHAR(100) NOT NULL, 
+	full_name VARCHAR(255), 
+	profile_picture_url TEXT, 
+	biography TEXT, 
+	followers_count INTEGER NOT NULL, 
+	following_count INTEGER NOT NULL, 
+	media_count INTEGER NOT NULL, 
+	password_encrypted TEXT, 
+	email_encrypted TEXT, 
+	email_password_encrypted TEXT, 
+	session_cookies TEXT, 
+	session_valid BOOLEAN NOT NULL, 
+	last_login_at DATETIME, 
+	two_factor_seed VARCHAR(100), 
+	login_method VARCHAR(50) NOT NULL, 
+	access_token_encrypted TEXT, 
+	token_type VARCHAR(50) NOT NULL, 
+	token_expires_at DATETIME, 
+	facebook_page_id VARCHAR(50), 
+	facebook_page_token_encrypted TEXT, 
+	account_status VARCHAR(50) NOT NULL, 
+	appeal_status VARCHAR(50) NOT NULL, 
+	status_message TEXT, 
+	last_checked_at DATETIME, 
+	last_appeal_at DATETIME, 
+	daily_post_limit INTEGER NOT NULL, 
+	posts_per_session INTEGER NOT NULL, 
+	is_active BOOLEAN NOT NULL, 
+	auto_publish BOOLEAN NOT NULL, 
+	photo_percentage INTEGER NOT NULL, 
+	video_percentage INTEGER NOT NULL, 
+	story_percentage INTEGER NOT NULL, 
+	reels_percentage INTEGER NOT NULL, 
+	posting_mode VARCHAR(50) NOT NULL, 
+	loop_mode VARCHAR(50) NOT NULL, 
+	proxy_url VARCHAR(500), 
+	user_agent VARCHAR(500), 
+	selected_hashtag_group_id INTEGER, 
+	selected_location_list VARCHAR(255), 
+	selected_media_list VARCHAR(255), 
+	created_at DATETIME NOT NULL, 
+	updated_at DATETIME NOT NULL, 
+	PRIMARY KEY (id), 
+	UNIQUE (instagram_id)
+)
+
+
+2026-02-19 22:28:55,405 INFO sqlalchemy.engine.Engine [no key 0.00020s] ()
+2026-02-19 22:28:55,409 INFO sqlalchemy.engine.Engine 
+CREATE TABLE message_templates (
+	id INTEGER NOT NULL, 
+	name VARCHAR(100) NOT NULL, 
+	content TEXT NOT NULL, 
+	category VARCHAR(50) NOT NULL, 
+	shortcut VARCHAR(20), 
+	use_count INTEGER NOT NULL, 
+	created_at DATETIME NOT NULL, 
+	PRIMARY KEY (id)
+)
+
+
+2026-02-19 22:28:55,409 INFO sqlalchemy.engine.Engine [no key 0.00019s] ()
+2026-02-19 22:28:55,412 INFO sqlalchemy.engine.Engine 
+CREATE TABLE system_settings (
+	id INTEGER NOT NULL, 
+	"key" VARCHAR(100) NOT NULL, 
+	value TEXT, 
+	description VARCHAR(500), 
+	updated_at DATETIME NOT NULL, 
+	PRIMARY KEY (id), 
+	UNIQUE ("key")
+)
+
+
+2026-02-19 22:28:55,412 INFO sqlalchemy.engine.Engine [no key 0.00019s] ()
+2026-02-19 22:28:55,416 INFO sqlalchemy.engine.Engine 
+CREATE TABLE captions (
+	id INTEGER NOT NULL, 
+	text TEXT NOT NULL, 
+	display_order INTEGER NOT NULL, 
+	is_active BOOLEAN NOT NULL, 
+	use_count INTEGER NOT NULL, 
+	created_at DATETIME NOT NULL, 
+	PRIMARY KEY (id)
+)
+
+
+2026-02-19 22:28:55,416 INFO sqlalchemy.engine.Engine [no key 0.00018s] ()
+2026-02-19 22:28:55,420 INFO sqlalchemy.engine.Engine 
+CREATE TABLE locations (
+	id INTEGER NOT NULL, 
+	list_name VARCHAR(200) NOT NULL, 
+	name VARCHAR(200) NOT NULL, 
+	city VARCHAR(100), 
+	instagram_location_pk VARCHAR(100), 
+	lat VARCHAR(50), 
+	lng VARCHAR(50), 
+	is_active BOOLEAN NOT NULL, 
+	created_at DATETIME NOT NULL, 
+	PRIMARY KEY (id)
+)
+
+
+2026-02-19 22:28:55,420 INFO sqlalchemy.engine.Engine [no key 0.00018s] ()
+2026-02-19 22:28:55,423 INFO sqlalchemy.engine.Engine 
+CREATE TABLE media_files (
+	id INTEGER NOT NULL, 
+	account_id INTEGER, 
+	filename VARCHAR(500) NOT NULL, 
+	original_filename VARCHAR(500) NOT NULL, 
+	file_path TEXT NOT NULL, 
+	thumbnail_path TEXT, 
+	media_type VARCHAR(7) NOT NULL, 
+	folder VARCHAR(255) NOT NULL, 
+	list_name VARCHAR(255), 
+	mime_type VARCHAR(100) NOT NULL, 
+	width INTEGER, 
+	height INTEGER, 
+	file_size BIGINT NOT NULL, 
+	duration INTEGER, 
+	source_url TEXT, 
+	source_username VARCHAR(100), 
+	is_used BOOLEAN NOT NULL, 
+	use_count INTEGER NOT NULL, 
+	created_at DATETIME NOT NULL, 
+	PRIMARY KEY (id), 
+	FOREIGN KEY(account_id) REFERENCES accounts (id) ON DELETE SET NULL
+)
+
+
+2026-02-19 22:28:55,423 INFO sqlalchemy.engine.Engine [no key 0.00028s] ()
+2026-02-19 22:28:55,426 INFO sqlalchemy.engine.Engine 
+CREATE TABLE messages (
+	id INTEGER NOT NULL, 
+	account_id INTEGER NOT NULL, 
+	conversation_id VARCHAR(100), 
+	sender_id VARCHAR(100) NOT NULL, 
+	sender_username VARCHAR(100), 
+	content TEXT NOT NULL, 
+	is_incoming BOOLEAN NOT NULL, 
+	is_read BOOLEAN NOT NULL, 
+	auto_replied BOOLEAN NOT NULL, 
+	tags JSON, 
+	timestamp DATETIME NOT NULL, 
+	PRIMARY KEY (id), 
+	FOREIGN KEY(account_id) REFERENCES accounts (id) ON DELETE CASCADE
+)
+
+
+2026-02-19 22:28:55,427 INFO sqlalchemy.engine.Engine [no key 0.00021s] ()
+2026-02-19 22:28:55,430 INFO sqlalchemy.engine.Engine 
+CREATE TABLE auto_reply_rules (
+	id INTEGER NOT NULL, 
+	account_id INTEGER, 
+	keywords JSON NOT NULL, 
+	response TEXT NOT NULL, 
+	is_active BOOLEAN NOT NULL, 
+	match_type VARCHAR(20) NOT NULL, 
+	priority INTEGER NOT NULL, 
+	whatsapp_redirect VARCHAR(500), 
+	trigger_count INTEGER NOT NULL, 
+	created_at DATETIME NOT NULL, 
+	PRIMARY KEY (id), 
+	FOREIGN KEY(account_id) REFERENCES accounts (id) ON DELETE CASCADE
+)
+
+
+2026-02-19 22:28:55,430 INFO sqlalchemy.engine.Engine [no key 0.00018s] ()
+2026-02-19 22:28:55,433 INFO sqlalchemy.engine.Engine 
+CREATE TABLE hashtag_groups (
+	id INTEGER NOT NULL, 
+	name VARCHAR(100) NOT NULL, 
+	hashtags JSON NOT NULL, 
+	account_id INTEGER, 
+	usage_count INTEGER NOT NULL, 
+	created_at DATETIME NOT NULL, 
+	updated_at DATETIME NOT NULL, 
+	PRIMARY KEY (id), 
+	FOREIGN KEY(account_id) REFERENCES accounts (id) ON DELETE SET NULL
+)
+
+
+2026-02-19 22:28:55,433 INFO sqlalchemy.engine.Engine [no key 0.00019s] ()
+2026-02-19 22:28:55,437 INFO sqlalchemy.engine.Engine 
+CREATE TABLE activity_logs (
+	id INTEGER NOT NULL, 
+	level VARCHAR(8) NOT NULL, 
+	category VARCHAR(9) NOT NULL, 
+	account_id INTEGER, 
+	action VARCHAR(255) NOT NULL, 
+	details TEXT, 
+	ip_address VARCHAR(50), 
+	user_id INTEGER, 
+	created_at DATETIME NOT NULL, 
+	PRIMARY KEY (id), 
+	FOREIGN KEY(account_id) REFERENCES accounts (id) ON DELETE SET NULL, 
+	FOREIGN KEY(user_id) REFERENCES users (id) ON DELETE SET NULL
+)
+
+
+2026-02-19 22:28:55,437 INFO sqlalchemy.engine.Engine [no key 0.00018s] ()
+2026-02-19 22:28:55,440 INFO sqlalchemy.engine.Engine 
+CREATE TABLE posts (
+	id INTEGER NOT NULL, 
+	account_id INTEGER NOT NULL, 
+	caption TEXT, 
+	media_type VARCHAR(8) NOT NULL, 
+	status VARCHAR(10) NOT NULL, 
+	scheduled_at DATETIME, 
+	published_at DATETIME, 
+	hashtag_group_id INTEGER, 
+	location_id VARCHAR(100), 
+	location_name VARCHAR(255), 
+	instagram_media_id VARCHAR(100), 
+	instagram_permalink TEXT, 
+	error_message TEXT, 
+	retry_count INTEGER NOT NULL, 
+	aspect_ratio VARCHAR(10) NOT NULL, 
+	auto_resize BOOLEAN NOT NULL, 
+	created_at DATETIME NOT NULL, 
+	updated_at DATETIME NOT NULL, 
+	PRIMARY KEY (id), 
+	FOREIGN KEY(account_id) REFERENCES accounts (id) ON DELETE CASCADE, 
+	FOREIGN KEY(hashtag_group_id) REFERENCES hashtag_groups (id) ON DELETE SET NULL
+)
+
+
+2026-02-19 22:28:55,441 INFO sqlalchemy.engine.Engine [no key 0.00022s] ()
+2026-02-19 22:28:55,444 INFO sqlalchemy.engine.Engine 
+CREATE TABLE post_media (
+	id INTEGER NOT NULL, 
+	post_id INTEGER NOT NULL, 
+	media_id INTEGER NOT NULL, 
+	position INTEGER NOT NULL, 
+	PRIMARY KEY (id), 
+	FOREIGN KEY(post_id) REFERENCES posts (id) ON DELETE CASCADE, 
+	FOREIGN KEY(media_id) REFERENCES media_files (id) ON DELETE CASCADE
+)
+
+
+2026-02-19 22:28:55,444 INFO sqlalchemy.engine.Engine [no key 0.00023s] ()
+2026-02-19 22:28:55,447 INFO sqlalchemy.engine.Engine COMMIT
+2026-02-19 22:28:55,447 INFO sqlalchemy.engine.Engine BEGIN (implicit)
+2026-02-19 22:28:55,448 INFO sqlalchemy.engine.Engine SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite~_%' ESCAPE '~' ORDER BY name
+2026-02-19 22:28:55,448 INFO sqlalchemy.engine.Engine [raw sql] ()
+2026-02-19 22:28:55,448 INFO sqlalchemy.engine.Engine ROLLBACK
+2026-02-19 22:28:55,448 INFO sqlalchemy.engine.Engine BEGIN (implicit)
+2026-02-19 22:28:55,448 INFO sqlalchemy.engine.Engine PRAGMA main.table_xinfo("accounts")
+2026-02-19 22:28:55,449 INFO sqlalchemy.engine.Engine [raw sql] ()
+2026-02-19 22:28:55,449 INFO sqlalchemy.engine.Engine ROLLBACK
+2026-02-19 22:28:55,449 INFO sqlalchemy.engine.Engine BEGIN (implicit)
+2026-02-19 22:28:55,450 INFO sqlalchemy.engine.Engine COMMIT
+2026-02-19 22:28:55,450 INFO sqlalchemy.engine.Engine BEGIN (implicit)
+2026-02-19 22:28:55,450 INFO sqlalchemy.engine.Engine SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite~_%' ESCAPE '~' ORDER BY name
+2026-02-19 22:28:55,450 INFO sqlalchemy.engine.Engine [raw sql] ()
+2026-02-19 22:28:55,450 INFO sqlalchemy.engine.Engine ROLLBACK
+2026-02-19 22:28:55,451 INFO sqlalchemy.engine.Engine BEGIN (implicit)
+2026-02-19 22:28:55,451 INFO sqlalchemy.engine.Engine PRAGMA main.table_xinfo("locations")
+2026-02-19 22:28:55,451 INFO sqlalchemy.engine.Engine [raw sql] ()
+2026-02-19 22:28:55,451 INFO sqlalchemy.engine.Engine ROLLBACK
+2026-02-19 22:28:55,452 INFO sqlalchemy.engine.Engine BEGIN (implicit)
+2026-02-19 22:28:55,452 INFO sqlalchemy.engine.Engine SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite~_%' ESCAPE '~' ORDER BY name
+2026-02-19 22:28:55,452 INFO sqlalchemy.engine.Engine [raw sql] ()
+2026-02-19 22:28:55,452 INFO sqlalchemy.engine.Engine ROLLBACK
+2026-02-19 22:28:55,452 INFO sqlalchemy.engine.Engine BEGIN (implicit)
+2026-02-19 22:28:55,453 INFO sqlalchemy.engine.Engine PRAGMA main.table_xinfo("media_files")
+2026-02-19 22:28:55,453 INFO sqlalchemy.engine.Engine [raw sql] ()
+2026-02-19 22:28:55,453 INFO sqlalchemy.engine.Engine ROLLBACK
+2026-02-19 22:28:55,467 INFO sqlalchemy.engine.Engine BEGIN (implicit)
+2026-02-19 22:28:55,470 INFO sqlalchemy.engine.Engine SELECT users.id AS users_id, users.username AS users_username, users.email AS users_email, users.password_hash AS users_password_hash, users.role AS users_role, users.is_active AS users_is_active, users.last_login AS users_last_login, users.created_at AS users_created_at, users.updated_at AS users_updated_at 
+FROM users 
+WHERE users.role = ?
+ LIMIT ? OFFSET ?
+2026-02-19 22:28:55,472 INFO sqlalchemy.engine.Engine [generated in 0.00128s] ('ADMIN', 1, 0)
+2026-02-19 22:28:55,668 INFO sqlalchemy.engine.Engine INSERT INTO users (username, email, password_hash, role, is_active, last_login, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+2026-02-19 22:28:55,669 INFO sqlalchemy.engine.Engine [generated in 0.00081s] ('admin', 'admin@demet.local', '$2b$12$3ogEwLqUeTscN1BXCqB1ruwwaHXmE4d2Gl3jjhfWEK.0XrfVkQItG', 'ADMIN', 1, None, '2026-02-19 19:28:55.668852', '2026-02-19 19:28:55.668857')
+2026-02-19 22:28:55,671 INFO sqlalchemy.engine.Engine COMMIT
